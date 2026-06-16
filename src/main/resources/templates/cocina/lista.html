@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="es"
+      xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout :: layout('Cocina', ~{::main})}">
+<body>
+<main>
+
+<style>
+/* ══════════════════════════════════════════════════════════════
+   VISTA COCINA
+══════════════════════════════════════════════════════════════ */
+
+/* ── Toolbar ────────────────────────────────────────────────── */
+.cocina-toolbar {
+    display: flex; align-items: center;
+    justify-content: space-between; flex-wrap: wrap;
+    gap: .6rem; margin-bottom: 1.1rem;
+}
+.cocina-toolbar-title {
+    font-size: .95rem; font-weight: 700; color: var(--text-main);
+    display: flex; align-items: center; gap: .45rem;
+}
+.cocina-toolbar-title svg { width: 16px; height: 16px; color: #c2410c; }
+.cocina-meta { font-size: .78rem; color: var(--text-sub); }
+
+.refresh-btn {
+    display: flex; align-items: center; gap: .35rem;
+    padding: .42rem .85rem; border-radius: 8px;
+    border: 1.5px solid var(--border); background: var(--surface);
+    font-size: .8rem; font-weight: 600; font-family: inherit;
+    color: var(--text-sub); cursor: pointer; transition: all .15s;
+}
+.refresh-btn:hover { background: #f1f5f9; color: var(--text-main); }
+.refresh-btn svg { width: 13px; height: 13px; }
+.countdown { font-weight: 800; color: #c2410c; }
+
+/* ── Grid de pedidos ────────────────────────────────────────── */
+.pedidos-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 1rem;
+    align-items: start;
+}
+
+/* ── Tarjeta de pedido ──────────────────────────────────────── */
+.pedido-card {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+}
+
+/* Header */
+.pc-header {
+    padding: .7rem 1rem;
+    background: linear-gradient(135deg, #1d3557 0%, #023e8a 100%);
+    display: flex; align-items: center; gap: .65rem; flex-wrap: wrap;
+}
+.pc-numero {
+    font-family: 'Courier New', monospace;
+    font-size: .88rem; font-weight: 800; color: #fff;
+    background: rgba(255,255,255,.15);
+    border-radius: 6px; padding: .2rem .55rem;
+}
+.pc-mesa {
+    display: flex; align-items: center; gap: .3rem;
+    font-size: .82rem; font-weight: 600; color: rgba(255,255,255,.9);
+}
+.pc-mesa svg { width: 13px; height: 13px; opacity: .75; }
+.pc-tiempo-pedido {
+    margin-left: auto;
+    font-size: .72rem; color: rgba(255,255,255,.65);
+    display: flex; align-items: center; gap: .25rem;
+}
+.pc-tiempo-pedido svg { width: 12px; height: 12px; }
+
+/* Lista de ítems */
+.pc-items { padding: .35rem 0; }
+
+.pc-item {
+    display: flex; align-items: center;
+    gap: .55rem; padding: .5rem 1rem;
+    border-bottom: 1px solid #f1f5f9;
+    transition: background .12s;
+}
+.pc-item:last-child { border-bottom: none; }
+.pc-item:hover { background: #fafbfd; }
+
+/* Dot estado */
+.estado-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    flex-shrink: 0; transition: background .25s;
+}
+.dot-en_prep  { background: #f97316; box-shadow: 0 0 0 3px #fff7ed; }
+.dot-listo    { background: #22c55e; box-shadow: 0 0 0 3px #f0fdf4; }
+.dot-servido  { background: #94a3b8; box-shadow: 0 0 0 3px #f1f5f9; }
+.dot-anulado  { background: #f43f5e; box-shadow: 0 0 0 3px #fff1f2; }
+
+/* Info del ítem */
+.pc-item-info { flex: 1; min-width: 0; }
+.pc-item-nombre {
+    font-size: .86rem; font-weight: 600; color: var(--text-main);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pc-item-nota {
+    font-size: .7rem; color: #c2410c;
+    background: #fff7ed; border-radius: 4px;
+    padding: .07rem .3rem; display: inline-block; margin-top: .15rem;
+}
+
+/* Cantidad */
+.pc-item-qty {
+    font-size: .78rem; font-weight: 800; color: #1d3557;
+    background: #e0e7ff; border-radius: 6px;
+    padding: .15rem .45rem; flex-shrink: 0;
+}
+
+/* Badge estado */
+.estado-badge {
+    display: inline-flex; align-items: center;
+    padding: .14rem .5rem; border-radius: 20px;
+    font-size: .67rem; font-weight: 700; white-space: nowrap;
+    flex-shrink: 0;
+}
+.eb-en_prep  { background: #fff7ed; color: #c2410c; }
+.eb-listo    { background: #f0fdf4; color: #15803d; }
+.eb-servido  { background: #f1f5f9; color: #475569; }
+.eb-anulado  { background: #fee2e2; color: #9f1239; }
+
+/* Temporizador del ítem */
+.item-timer {
+    font-size: .68rem; font-weight: 700;
+    font-family: 'Courier New', monospace;
+    color: var(--text-sub); flex-shrink: 0;
+    min-width: 38px; text-align: right;
+}
+.item-timer.timer-warning { color: #c2410c; }
+.item-timer.timer-ok      { color: #15803d; }
+
+/* Botones de acción */
+.pc-item-actions { display: flex; gap: .2rem; flex-shrink: 0; }
+
+.btn-avanzar {
+    display: flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px;
+    border-radius: 8px; border: 1.5px solid transparent;
+    cursor: pointer; transition: all .15s; font-family: inherit;
+    flex-shrink: 0;
+}
+.btn-avanzar svg { width: 13px; height: 13px; }
+
+/* EN_PREP → LISTO */
+.ba-listo { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+.ba-listo:hover { background: #dcfce7; }
+/* LISTO → SERVIDO */
+.ba-servido { background: #f1f5f9; color: #475569; border-color: #e2e8f0; }
+.ba-servido:hover { background: #e2e8f0; }
+
+/* Ítem anulado: atenuado */
+.pc-item.item-anulado { opacity: .45; }
+
+/* ── Footer ─────────────────────────────────────────────────── */
+.pc-footer {
+    padding: .6rem 1rem;
+    border-top: 1px solid var(--border);
+    background: #f8fafc;
+    display: flex; align-items: center; gap: .5rem;
+}
+
+/* Barra de progreso */
+.progress-wrap {
+    flex: 1; display: flex; align-items: center; gap: .45rem;
+}
+.progress-track {
+    flex: 1; height: 6px; background: #e2e8f0;
+    border-radius: 99px; overflow: hidden;
+}
+.progress-fill {
+    height: 100%; border-radius: 99px;
+    background: linear-gradient(90deg, #22c55e, #16a34a);
+    transition: width .4s;
+}
+.progress-label {
+    font-size: .7rem; font-weight: 700; color: var(--text-sub);
+    white-space: nowrap;
+}
+
+/* Link ver pedido */
+.link-ver-pedido {
+    font-size: .72rem; color: var(--text-sub);
+    text-decoration: none;
+    display: flex; align-items: center; gap: .22rem;
+    padding: .3rem .55rem; border-radius: 6px;
+    border: 1px solid var(--border); background: #fff;
+    transition: background .12s; flex-shrink: 0;
+}
+.link-ver-pedido:hover { background: #f1f5f9; }
+.link-ver-pedido svg { width: 11px; height: 11px; }
+
+/* ── Empty state ────────────────────────────────────────────── */
+.empty-cocina {
+    text-align: center; padding: 4.5rem 1rem;
+    color: var(--text-sub);
+}
+.empty-cocina svg { width: 52px; height: 52px; opacity: .17; margin-bottom: .8rem; }
+.empty-cocina p   { font-size: .9rem; font-weight: 500; }
+.empty-cocina small { font-size: .78rem; }
+</style>
+
+<!-- ══ FLASH ════════════════════════════════════════════════════════════════ -->
+<div th:if="${flashMensaje != null}"
+     th:classappend="${flashTipo == 'success' ? 'success' : 'error'}"
+     class="alert-flash">
+    <svg th:if="${flashTipo == 'success'}" viewBox="0 0 24 24" fill="none"
+         stroke="currentColor" stroke-width="2" style="width:15px;height:15px;flex-shrink:0">
+        <polyline points="20 6 9 17 4 12"/>
+    </svg>
+    <svg th:unless="${flashTipo == 'success'}" viewBox="0 0 24 24" fill="none"
+         stroke="currentColor" stroke-width="2" style="width:15px;height:15px;flex-shrink:0">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    <span th:text="${flashMensaje}"></span>
+</div>
+
+<!-- ══ TOOLBAR ══════════════════════════════════════════════════════════════ -->
+<div class="cocina-toolbar">
+    <div>
+        <div class="cocina-toolbar-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/>
+                <path d="M7 2v20"/>
+                <path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/>
+            </svg>
+            Cocina — pedidos activos
+        </div>
+        <div class="cocina-meta"
+             th:text="${#lists.size(pedidos)} + ' pedido(s) en cocina · Refresh en '">
+        </div>
+    </div>
+    <button class="refresh-btn" onclick="location.reload()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="23 4 23 10 17 10"/>
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+        </svg>
+        Actualizar &nbsp;<span class="countdown" id="countdown">30</span>s
+    </button>
+</div>
+
+<!-- ══ GRID ═════════════════════════════════════════════════════════════════ -->
+<div class="pedidos-grid">
+
+    <!-- Empty state -->
+    <div th:if="${#lists.isEmpty(pedidos)}" class="empty-cocina"
+         style="grid-column:1/-1">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/>
+            <path d="M7 2v20"/>
+            <path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/>
+        </svg>
+        <p>Sin pedidos en cocina</p>
+        <small>Cuando se envíe un pedido a cocina aparecerá aquí.</small>
+    </div>
+
+    <!-- Tarjeta por pedido -->
+    <div th:each="pedido : ${pedidos}" class="pedido-card">
+
+        <!-- Header -->
+        <div class="pc-header">
+            <span class="pc-numero" th:text="${pedido.numeroPedido}">PED-...</span>
+            <div class="pc-mesa">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 6h18M3 12h18M3 18h18"/>
+                </svg>
+                <span th:text="${pedido.mesa.area.nombre + ' · Mesa ' + pedido.mesa.numero}">A·1</span>
+            </div>
+            <!-- Tiempo del pedido desde creadoEn — JS lo llena -->
+            <div class="pc-tiempo-pedido">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                </svg>
+                <span class="pedido-elapsed"
+                      th:data-desde="${pedido.creadoEn}">—</span>
+            </div>
+        </div>
+
+        <!-- Ítems -->
+        <div class="pc-items">
+            <div th:each="item : ${pedido.detalles}"
+                 class="pc-item"
+                 th:classappend="${item.estadoItem == 'ANULADO' ? 'item-anulado' : ''}">
+
+                <!-- Dot de estado -->
+                <div class="estado-dot"
+                     th:classappend="${item.estadoItem == 'EN_PREP'  ? 'dot-en_prep'  :
+                                      item.estadoItem == 'LISTO'    ? 'dot-listo'    :
+                                      item.estadoItem == 'SERVIDO'  ? 'dot-servido'  :
+                                                                       'dot-anulado'}">
+                </div>
+
+                <!-- Info -->
+                <div class="pc-item-info">
+                    <div class="pc-item-nombre"
+                         th:text="${item.producto.nombre}">Producto</div>
+                    <span th:if="${item.notaCocina != null and !#strings.isEmpty(item.notaCocina)}"
+                          class="pc-item-nota"
+                          th:text="'🍳 ' + ${item.notaCocina}">nota</span>
+                </div>
+
+                <!-- Cantidad -->
+                <span class="pc-item-qty"
+                      th:text="'×' + ${item.cantidad}">×1</span>
+
+                <!-- Badge estado -->
+                <span class="estado-badge"
+                      th:classappend="${item.estadoItem == 'EN_PREP'  ? 'eb-en_prep'  :
+                                       item.estadoItem == 'LISTO'    ? 'eb-listo'    :
+                                       item.estadoItem == 'SERVIDO'  ? 'eb-servido'  :
+                                                                        'eb-anulado'}">
+                    <span th:text="${item.estadoItem == 'EN_PREP'  ? 'En prep.'  :
+                                    item.estadoItem == 'LISTO'     ? 'Listo'     :
+                                    item.estadoItem == 'SERVIDO'   ? 'Servido'   :
+                                                                      'Anulado'}">—</span>
+                </span>
+
+                <!--
+                    Temporizador: corre desde actualizadoEn cuando el ítem
+                    está EN_PREP o LISTO. Cuando llega a SERVIDO muestra el
+                    tiempo total que tardó.
+                    data-desde  = ISO timestamp del actualizadoEn
+                    data-estado = estado actual del ítem
+                -->
+                <span class="item-timer"
+                      th:if="${item.estadoItem != 'ANULADO'}"
+                      th:data-desde="${item.actualizadoEn}"
+                      th:data-estado="${item.estadoItem}">—</span>
+
+                <!-- Acciones (solo si no está anulado ni servido) -->
+                <div class="pc-item-actions"
+                     th:if="${item.estadoItem == 'EN_PREP' or item.estadoItem == 'LISTO'}">
+
+                    <!-- EN_PREP → LISTO -->
+                    <form th:if="${item.estadoItem == 'EN_PREP'}"
+                          th:action="@{/cocina/items/{id}/estado(id=${item.id})}"
+                          method="post">
+                        <input type="hidden"
+                               th:name="${_csrf?.parameterName}"
+                               th:value="${_csrf?.token}"/>
+                        <input type="hidden" name="nuevoEstado" value="LISTO"/>
+                        <button type="submit" class="btn-avanzar ba-listo"
+                                title="Marcar como Listo">
+                            <svg viewBox="0 0 24 24" fill="none"
+                                 stroke="currentColor" stroke-width="2.5">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                        </button>
+                    </form>
+
+                    <!-- LISTO → SERVIDO -->
+                    <form th:if="${item.estadoItem == 'LISTO'}"
+                          th:action="@{/cocina/items/{id}/estado(id=${item.id})}"
+                          method="post">
+                        <input type="hidden"
+                               th:name="${_csrf?.parameterName}"
+                               th:value="${_csrf?.token}"/>
+                        <input type="hidden" name="nuevoEstado" value="SERVIDO"/>
+                        <button type="submit" class="btn-avanzar ba-servido"
+                                title="Marcar como Servido">
+                            <svg viewBox="0 0 24 24" fill="none"
+                                 stroke="currentColor" stroke-width="2.5">
+                                <path d="M9 12l2 2 4-4"/>
+                                <circle cx="12" cy="12" r="10"/>
+                            </svg>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Ícono de completado cuando ya está SERVIDO -->
+                <div th:if="${item.estadoItem == 'SERVIDO'}"
+                     style="width:30px;height:30px;display:flex;align-items:center;
+                            justify-content:center;color:#15803d;flex-shrink:0;">
+                    <svg viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2.5"
+                         style="width:16px;height:16px">
+                        <path d="M9 12l2 2 4-4"/>
+                        <circle cx="12" cy="12" r="10"/>
+                    </svg>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Footer: progreso + link -->
+        <div class="pc-footer">
+            <th:block th:with="
+                activos=${pedido.detalles.?[estadoItem != 'ANULADO']},
+                servidos=${pedido.detalles.?[estadoItem == 'SERVIDO']}">
+
+                <div class="progress-wrap">
+                    <div class="progress-track">
+                        <div class="progress-fill"
+                             th:style="'width:' +
+                                ${#lists.isEmpty(activos) ? 0 :
+                                  (#lists.size(servidos) * 100 / #lists.size(activos))} + '%'">
+                        </div>
+                    </div>
+                    <span class="progress-label"
+                          th:text="${#lists.size(servidos)} + '/' + ${#lists.size(activos)} + ' servidos'">
+                    </span>
+                </div>
+            </th:block>
+
+            <a th:href="@{/pedidos/{id}(id=${pedido.id})}"
+               class="link-ver-pedido" target="_blank">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                </svg>
+                Ver pedido
+            </a>
+        </div>
+
+    </div><!-- /pedido-card -->
+
+</div><!-- /pedidos-grid -->
+
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+    /* ══════════════════════════════════════════════════════════
+       UTILIDAD: formatear segundos como  Xm Ys  o  Xh Ym
+    ══════════════════════════════════════════════════════════ */
+    function formatTiempo(segundos) {
+        if (segundos < 60)  return segundos + 's';
+        if (segundos < 3600) {
+            var m = Math.floor(segundos / 60);
+            var s = segundos % 60;
+            return m + 'm ' + (s > 0 ? s + 's' : '');
+        }
+        var h = Math.floor(segundos / 3600);
+        var m = Math.floor((segundos % 3600) / 60);
+        return h + 'h ' + m + 'm';
+    }
+
+    /* ══════════════════════════════════════════════════════════
+       TIMERS DE ÍTEMS
+       - EN_PREP / LISTO: cuentan hacia arriba desde actualizadoEn
+       - SERVIDO: muestran el tiempo total fijo
+       - Color: < 10 min verde, 10-20 naranja, > 20 rojo
+    ══════════════════════════════════════════════════════════ */
+    var itemTimers = document.querySelectorAll('.item-timer');
+
+    function tickItems() {
+        var ahora = Date.now();
+        itemTimers.forEach(function (el) {
+            var desde  = new Date(el.dataset.desde).getTime();
+            var estado = el.dataset.estado;
+            var segs   = Math.floor((ahora - desde) / 1000);
+            if (segs < 0) segs = 0;
+
+            el.textContent = formatTiempo(segs);
+
+            // Color solo para ítems que siguen corriendo
+            el.classList.remove('timer-ok', 'timer-warning');
+            if (estado === 'EN_PREP' || estado === 'LISTO') {
+                if (segs < 600)       el.classList.add('timer-ok');      // < 10 min
+                else if (segs < 1200) { /* naranja natural, sin clase */ }
+                else                  el.classList.add('timer-warning'); // > 20 min
+            }
+        });
+    }
+    tickItems();
+    setInterval(tickItems, 1000);
+
+    /* ══════════════════════════════════════════════════════════
+       TIMERS DE PEDIDOS (header de cada card)
+       Muestran tiempo total desde creadoEn del pedido
+    ══════════════════════════════════════════════════════════ */
+    var pedidoElapsed = document.querySelectorAll('.pedido-elapsed');
+
+    function tickPedidos() {
+        var ahora = Date.now();
+        pedidoElapsed.forEach(function (el) {
+            var desde = new Date(el.dataset.desde).getTime();
+            var segs  = Math.floor((ahora - desde) / 1000);
+            if (segs < 0) segs = 0;
+            el.textContent = formatTiempo(segs);
+        });
+    }
+    tickPedidos();
+    setInterval(tickPedidos, 1000);
+
+    /* ══════════════════════════════════════════════════════════
+       AUTO-REFRESH CADA 30 SEGUNDOS
+    ══════════════════════════════════════════════════════════ */
+    var segundos = 30;
+    var cdEl = document.getElementById('countdown');
+
+    setInterval(function () {
+        segundos--;
+        if (cdEl) cdEl.textContent = segundos;
+        if (segundos <= 0) location.reload();
+    }, 1000);
+
+    /* ══════════════════════════════════════════════════════════
+       FLASH AUTO-OCULTAR
+    ══════════════════════════════════════════════════════════ */
+    var flash = document.querySelector('.alert-flash');
+    if (flash) {
+        setTimeout(function () {
+            flash.style.transition = 'opacity .4s';
+            flash.style.opacity = '0';
+            setTimeout(function () { flash.remove(); }, 400);
+        }, 5000);
+    }
+});
+</script>
+
+</main>
+</body>
+</html>

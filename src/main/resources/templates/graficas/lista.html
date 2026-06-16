@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="es"
+      xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout :: layout('Gráficas', ~{::section})}">
+<body>
+<section>
+
+<!-- ═══════════════════════════════════════════════════════════
+     ESTILOS EXCLUSIVOS DEL MÓDULO
+════════════════════════════════════════════════════════════ -->
+<style>
+/* ── Paleta Power BI ── */
+:root {
+    --c1: #2563eb; --c2: #7c3aed; --c3: #db2777; --c4: #ea580c;
+    --c5: #16a34a; --c6: #0891b2; --c7: #d97706; --c8: #dc2626;
+    --kpi-up:   #16a34a;
+    --kpi-down: #dc2626;
+    --kpi-neu:  #64748b;
+}
+
+/* ── Layout general ── */
+.g-header {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem;
+}
+.g-title { font-size: 1.25rem; font-weight: 700; color: #0f172a; }
+.g-subtitle { font-size: .82rem; color: #64748b; margin-top: .15rem; }
+.g-filters {
+    display: flex; gap: .5rem; align-items: center; flex-wrap: wrap;
+}
+.g-badge-live {
+    display: inline-flex; align-items: center; gap: .35rem;
+    font-size: .72rem; font-weight: 600; padding: .25rem .65rem;
+    border-radius: 20px; background: #dcfce7; color: #15803d;
+}
+.g-badge-live::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%;
+    background: #15803d; animation: pulse 1.6s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+/* ── KPI cards ── */
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem; margin-bottom: 1.5rem;
+}
+.kpi-card {
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+    padding: 1.1rem 1.25rem; position: relative; overflow: hidden;
+    transition: box-shadow .2s;
+}
+.kpi-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,.10); }
+.kpi-card::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+    width: 4px; border-radius: 12px 0 0 12px;
+}
+.kpi-card.c1::before { background: var(--c1); }
+.kpi-card.c2::before { background: var(--c2); }
+.kpi-card.c3::before { background: var(--c3); }
+.kpi-card.c5::before { background: var(--c5); }
+
+.kpi-label {
+    font-size: .72rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: .07em; color: #64748b; margin-bottom: .5rem;
+}
+.kpi-value {
+    font-size: 1.75rem; font-weight: 800; color: #0f172a;
+    line-height: 1.1; min-height: 2rem;
+}
+.kpi-value.loading { background: #f1f5f9; border-radius: 6px; color: transparent; }
+.kpi-delta {
+    display: inline-flex; align-items: center; gap: .25rem;
+    font-size: .75rem; font-weight: 700; margin-top: .4rem;
+    padding: .15rem .45rem; border-radius: 20px;
+}
+.kpi-delta.up   { background: #dcfce7; color: var(--kpi-up); }
+.kpi-delta.down { background: #fee2e2; color: var(--kpi-down); }
+.kpi-delta.neu  { background: #f1f5f9; color: var(--kpi-neu); }
+.kpi-delta svg  { width: 11px; height: 11px; }
+.kpi-compare { font-size: .72rem; color: #94a3b8; margin-top: .2rem; }
+
+/* ── Grid de gráficas ── */
+.charts-grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 1rem;
+}
+
+/* Tamaños de tarjetas */
+.chart-card        { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+                     overflow: hidden; display: flex; flex-direction: column; }
+.chart-card:hover  { box-shadow: 0 4px 20px rgba(0,0,0,.09); transition: box-shadow .2s; }
+
+.col-8             { grid-column: span 8; }
+.col-4             { grid-column: span 4; }
+.col-7             { grid-column: span 7; }
+.col-5             { grid-column: span 5; }
+.col-6             { grid-column: span 6; }
+.col-12            { grid-column: span 12; }
+
+@media (max-width: 1100px) {
+    .col-8,.col-7,.col-5,.col-6 { grid-column: span 12; }
+    .col-4 { grid-column: span 12; }
+}
+@media (max-width: 680px) {
+    .kpi-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 420px) {
+    .kpi-grid { grid-template-columns: 1fr; }
+}
+
+.chart-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: .9rem 1.1rem .5rem; border-bottom: 1px solid #f1f5f9; gap: .5rem;
+}
+.chart-title  { font-size: .88rem; font-weight: 700; color: #0f172a; }
+.chart-period { font-size: .72rem; color: #94a3b8; font-weight: 500; }
+
+/* ── FIX PRINCIPAL: chart-body con altura fija y overflow hidden
+      Evita el bucle de redimensionado de Chart.js con maintainAspectRatio:false ── */
+.chart-body {
+    padding: 1rem;
+    position: relative;
+    overflow: hidden;   /* <-- evita que el canvas desborde y expanda la tarjeta */
+    box-sizing: border-box;
+}
+
+/* Alturas explícitas por tamaño — se aplican al contenedor, NO al canvas */
+.chart-body.h-lg { height: 280px; }
+.chart-body.h-md { height: 240px; }
+.chart-body.h-sm { height: 210px; }
+
+/* El canvas ocupa todo el espacio disponible del contenedor */
+.chart-body canvas {
+    width: 100% !important;
+    height: 100% !important;
+    display: block;
+}
+
+/* Contenedor flex para donuts: canvas + leyenda con altura controlada */
+.chart-body.donut-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow: hidden;
+}
+/* Canvas del donut ocupa el espacio sobrante, la leyenda toma lo suyo */
+.chart-body.donut-wrap canvas {
+    flex: 1;
+    min-height: 0;          /* necesario para que flex no lo expanda */
+    max-width: 200px;
+    width: 100% !important;
+    height: auto !important; /* se controla por flex, no por px */
+}
+
+/* Skeleton loader */
+.skeleton {
+    background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s infinite;
+    border-radius: 8px;
+}
+@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+.canvas-skeleton { width: 100%; border-radius: 8px; }
+
+/* ── Heatmap custom ── */
+.heatmap-wrap { overflow-x: auto; }
+.heatmap-table { border-collapse: collapse; width: 100%; min-width: 560px; }
+.heatmap-table th, .heatmap-table td {
+    padding: 0; text-align: center; font-size: .66rem;
+}
+.heatmap-table th.dia-label {
+    width: 36px; text-align: right; padding-right: 6px;
+    font-size: .68rem; font-weight: 600; color: #64748b; white-space: nowrap;
+}
+.heatmap-table th.hora-label {
+    font-size: .62rem; color: #94a3b8; font-weight: 500;
+    padding-bottom: 4px; min-width: 26px;
+}
+.hm-cell {
+    width: 100%; aspect-ratio: 1.3;
+    border-radius: 3px; display: block; margin: 1px;
+    transition: transform .1s;
+}
+.hm-cell:hover { transform: scale(1.25); z-index: 2; position: relative; }
+
+/* ── Leyenda de barras ── */
+.legend-list {
+    display: flex; gap: .75rem; flex-wrap: wrap;
+    font-size: .72rem; color: #475569; margin-top: .4rem;
+}
+.legend-item { display: flex; align-items: center; gap: .3rem; }
+.legend-dot  { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+
+/* ── Empty state ── */
+.empty-chart {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 100%; min-height: 140px; color: #94a3b8; font-size: .82rem; gap: .5rem;
+}
+.empty-chart svg { width: 32px; height: 32px; opacity: .35; }
+</style>
+
+<!-- ═══════════════════════════════════════════════════════════
+     CABECERA
+════════════════════════════════════════════════════════════ -->
+<div class="g-header">
+    <div>
+        <h1 class="g-title">Analytics del Negocio</h1>
+        <p class="g-subtitle">Visión general de ventas, tendencias y rendimiento</p>
+    </div>
+    <div class="g-filters">
+        <span class="g-badge-live">En vivo</span>
+        <button class="btn btn-secondary btn-sm" onclick="recargarTodo()" style="gap:.4rem;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="23 4 23 10 17 10"/>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+            </svg>
+            Actualizar
+        </button>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     KPI CARDS (cargadas vía fetch)
+════════════════════════════════════════════════════════════ -->
+<div class="kpi-grid">
+    <div class="kpi-card c1" id="kpi-ventas">
+        <div class="kpi-label">Ventas este mes</div>
+        <div class="kpi-value loading" id="kv-ventas">S/ ···</div>
+        <div id="kv-ventas-delta"></div>
+        <div class="kpi-compare" id="kv-ventas-compare"></div>
+    </div>
+    <div class="kpi-card c2" id="kpi-pedidos">
+        <div class="kpi-label">Pedidos cobrados</div>
+        <div class="kpi-value loading" id="kv-pedidos">···</div>
+        <div id="kv-pedidos-delta"></div>
+        <div class="kpi-compare" id="kv-pedidos-compare"></div>
+    </div>
+    <div class="kpi-card c3" id="kpi-ticket">
+        <div class="kpi-label">Ticket promedio</div>
+        <div class="kpi-value loading" id="kv-ticket">S/ ···</div>
+        <div id="kv-ticket-delta"></div>
+        <div class="kpi-compare" id="kv-ticket-compare"></div>
+    </div>
+    <div class="kpi-card c5" id="kpi-estado">
+        <div class="kpi-label">Estado de hoy</div>
+        <div class="kpi-value loading" id="kv-estado">···</div>
+        <div class="kpi-compare" id="kv-estado-sub"></div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     GRID DE GRÁFICAS
+════════════════════════════════════════════════════════════ -->
+<div class="charts-grid">
+
+    <!-- 1. Ventas por mes — LINE (col 8) -->
+    <div class="chart-card col-8">
+        <div class="chart-header">
+            <span class="chart-title">📈 Ventas por Mes</span>
+            <span class="chart-period">Últimos 12 meses</span>
+        </div>
+        <!-- FIX: altura fija en el contenedor, canvas la hereda al 100% -->
+        <div class="chart-body h-lg">
+            <canvas id="chartVentasMes"></canvas>
+        </div>
+    </div>
+
+    <!-- 2. Pedidos por estado hoy — DONUT (col 4) -->
+    <div class="chart-card col-4">
+        <div class="chart-header">
+            <span class="chart-title">🍩 Estado de Pedidos Hoy</span>
+            <span class="chart-period">Día actual</span>
+        </div>
+        <!-- FIX: donut-wrap controla flex + min-height:0 en el canvas -->
+        <div class="chart-body h-md donut-wrap">
+            <canvas id="chartEstadoHoy"></canvas>
+            <div class="legend-list" id="legendEstadoHoy" style="justify-content:center;margin-top:.75rem;flex-shrink:0;"></div>
+        </div>
+    </div>
+
+    <!-- 3. Top 10 productos — BAR horizontal (col 7) -->
+    <div class="chart-card col-7">
+        <div class="chart-header">
+            <span class="chart-title">🏆 Top 10 Productos</span>
+            <span class="chart-period">Últimos 30 días · por cantidad</span>
+        </div>
+        <div class="chart-body h-lg">
+            <canvas id="chartTopProductos"></canvas>
+        </div>
+    </div>
+
+    <!-- 4. Ventas por categoría — DONUT (col 5) -->
+    <div class="chart-card col-5">
+        <div class="chart-header">
+            <span class="chart-title">🧩 Por Categoría</span>
+            <span class="chart-period">Últimos 30 días</span>
+        </div>
+        <!-- FIX: mismo tratamiento que el donut de estado -->
+        <div class="chart-body h-md donut-wrap">
+            <canvas id="chartCategoria"></canvas>
+            <div class="legend-list" id="legendCategoria" style="justify-content:center;margin-top:.75rem;flex-shrink:0;"></div>
+        </div>
+    </div>
+
+    <!-- 5. Comparativa semanas — BAR agrupado (col 6) -->
+    <div class="chart-card col-6">
+        <div class="chart-header">
+            <span class="chart-title">📊 Semana Actual vs Anterior</span>
+            <span class="chart-period">Por día de semana</span>
+        </div>
+        <div class="chart-body h-md">
+            <canvas id="chartComparativa"></canvas>
+        </div>
+        <div style="padding:.4rem 1rem .9rem;">
+            <div class="legend-list">
+                <div class="legend-item">
+                    <span class="legend-dot" style="background:var(--c1);"></span> Esta semana
+                </div>
+                <div class="legend-item">
+                    <span class="legend-dot" style="background:#cbd5e1;"></span> Semana pasada
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 6. Ticket promedio — LINE con área (col 6) -->
+    <div class="chart-card col-6">
+        <div class="chart-header">
+            <span class="chart-title">💰 Ticket Promedio Diario</span>
+            <span class="chart-period">Últimos 30 días</span>
+        </div>
+        <div class="chart-body h-md">
+            <canvas id="chartTicket"></canvas>
+        </div>
+    </div>
+
+    <!-- 7. Heatmap — tabla personalizada (col 12) -->
+    <div class="chart-card col-12">
+        <div class="chart-header">
+            <span class="chart-title">🔥 Mapa de Calor — Ventas por Hora y Día de la Semana</span>
+            <span class="chart-period">Últimos 90 días</span>
+        </div>
+        <div class="chart-body">
+            <div class="heatmap-wrap" id="heatmapWrap">
+                <!-- Renderizado por JS -->
+                <div class="canvas-skeleton skeleton" style="height:190px;"></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:.5rem;margin-top:.75rem;font-size:.72rem;color:#64748b;">
+                <span>Menos</span>
+                <div id="heatmapLeyenda" style="display:flex;gap:2px;"></div>
+                <span>Más</span>
+                <span style="margin-left:.75rem;">Intensidad = total ventas S/</span>
+            </div>
+        </div>
+    </div>
+
+</div><!-- /charts-grid -->
+
+<!-- ═══════════════════════════════════════════════════════════
+     SCRIPTS — Chart.js + lógica de carga
+════════════════════════════════════════════════════════════ -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+/* ────────────────────────────────────────────────────────────
+   CONFIGURACIÓN GLOBAL CHART.JS
+──────────────────────────────────────────────────────────── */
+Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
+Chart.defaults.font.size   = 11;
+Chart.defaults.color       = '#64748b';
+Chart.defaults.plugins.legend.display = false;
+Chart.defaults.plugins.tooltip.backgroundColor = '#0f172a';
+Chart.defaults.plugins.tooltip.titleColor       = '#f8fafc';
+Chart.defaults.plugins.tooltip.bodyColor        = '#cbd5e1';
+Chart.defaults.plugins.tooltip.padding          = 10;
+Chart.defaults.plugins.tooltip.cornerRadius     = 8;
+Chart.defaults.plugins.tooltip.displayColors    = true;
+Chart.defaults.plugins.tooltip.boxPadding       = 4;
+
+/* Paleta de colores */
+const PALETTE = [
+    '#2563eb','#7c3aed','#db2777','#ea580c',
+    '#16a34a','#0891b2','#d97706','#dc2626',
+    '#4f46e5','#0d9488'
+];
+
+/* Instancias de charts (para destruir antes de redibujar) */
+const charts = {};
+
+function destroyChart(id) {
+    if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+
+/* ────────────────────────────────────────────────────────────
+   FORMATO MONEDA
+──────────────────────────────────────────────────────────── */
+function fmtSoles(v) {
+    return 'S/ ' + Number(v).toLocaleString('es-PE', {
+        minimumFractionDigits: 2, maximumFractionDigits: 2
+    });
+}
+function fmtNum(v) {
+    return Number(v).toLocaleString('es-PE');
+}
+
+/* ────────────────────────────────────────────────────────────
+   KPIs
+──────────────────────────────────────────────────────────── */
+async function cargarKpis() {
+    try {
+        const data = await fetch('/graficas/api/kpis').then(r => r.json());
+        const a  = data.actual   || {};
+        const an = data.anterior || {};
+
+        setKpi('ventas',  fmtSoles(a.totalVentas  || 0), data.varVentas,
+               'vs mes anterior · ' + fmtSoles(an.totalVentas || 0));
+        setKpi('pedidos', fmtNum(a.numPedidos     || 0), data.varPedidos,
+               'vs mes anterior · ' + fmtNum(an.numPedidos || 0));
+        setKpi('ticket',  fmtSoles(a.ticketPromedio || 0), data.varTicket,
+               'vs mes anterior · ' + fmtSoles(an.ticketPromedio || 0));
+
+        /* Estado hoy */
+        const ed = await fetch('/graficas/api/pedidos-estado-hoy').then(r => r.json());
+        const total = (ed.cantidades || []).reduce((s, v) => s + v, 0);
+        document.getElementById('kv-estado').textContent       = fmtNum(total) + ' pedidos';
+        document.getElementById('kv-estado').classList.remove('loading');
+        document.getElementById('kv-estado-sub').textContent   = (ed.labels || []).join(' · ');
+
+    } catch(e) { console.error('KPIs', e); }
+}
+
+function setKpi(id, valor, delta, compare) {
+    const el = document.getElementById('kv-' + id);
+    el.textContent = valor;
+    el.classList.remove('loading');
+
+    const sign  = delta > 0 ? 'up' : delta < 0 ? 'down' : 'neu';
+    const arrow = delta > 0
+        ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg>'
+        : delta < 0
+        ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg>'
+        : '';
+    document.getElementById('kv-' + id + '-delta').innerHTML =
+        `<span class="kpi-delta ${sign}">${arrow}${Math.abs(delta)}%</span>`;
+    document.getElementById('kv-' + id + '-compare').textContent = compare;
+}
+
+/* ────────────────────────────────────────────────────────────
+   1. VENTAS POR MES — Line chart
+──────────────────────────────────────────────────────────── */
+async function cargarVentasMes() {
+    const data = await fetch('/graficas/api/ventas-por-mes').then(r => r.json());
+    destroyChart('chartVentasMes');
+
+    const ctx = document.getElementById('chartVentasMes').getContext('2d');
+    const grad = ctx.createLinearGradient(0, 0, 0, 260);
+    grad.addColorStop(0, 'rgba(37,99,235,.22)');
+    grad.addColorStop(1, 'rgba(37,99,235,0)');
+
+    charts['chartVentasMes'] = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: data.labels || [],
+            datasets: [{
+                label: 'Ventas (S/)',
+                data: data.totales || [],
+                borderColor: '#2563eb',
+                backgroundColor: grad,
+                borderWidth: 2.5,
+                pointRadius: 4,
+                pointBackgroundColor: '#fff',
+                pointBorderColor: '#2563eb',
+                pointBorderWidth: 2,
+                tension: .4,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: ctx => ' ' + fmtSoles(ctx.raw)
+                    }
+                }
+            },
+            scales: {
+                x: { grid: { display: false }, border: { display: false } },
+                y: {
+                    grid: { color: '#f1f5f9' },
+                    border: { display: false, dash: [4,4] },
+                    ticks: { callback: v => 'S/' + (v >= 1000 ? (v/1000).toFixed(1)+'k' : v) }
+                }
+            }
+        }
+    });
+}
+
+/* ────────────────────────────────────────────────────────────
+   2. ESTADO PEDIDOS HOY — Donut
+──────────────────────────────────────────────────────────── */
+async function cargarEstadoHoy() {
+    const data = await fetch('/graficas/api/pedidos-estado-hoy').then(r => r.json());
+    destroyChart('estadoHoy');
+
+    if (!data.labels || data.labels.length === 0) {
+        document.getElementById('chartEstadoHoy').closest('.chart-body').innerHTML =
+            emptyState('Sin pedidos registrados hoy');
+        return;
+    }
+
+    const colors = ['#2563eb','#f59e0b','#16a34a','#7c3aed','#dc2626'];
+    const ctx = document.getElementById('chartEstadoHoy').getContext('2d');
+
+    charts['estadoHoy'] = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                data: data.cantidades,
+                backgroundColor: colors.slice(0, data.labels.length),
+                borderWidth: 0,
+                hoverOffset: 6
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            cutout: '72%',
+            plugins: {
+                tooltip: { callbacks: { label: ctx => ' ' + ctx.label + ': ' + ctx.raw } }
+            }
+        }
+    });
+
+    // Leyenda manual
+    const leg = document.getElementById('legendEstadoHoy');
+    leg.innerHTML = data.labels.map((l,i) =>
+        `<div class="legend-item">
+            <span class="legend-dot" style="background:${colors[i]};border-radius:50%;"></span>
+            <span>${l}</span>
+         </div>`).join('');
+}
+
+/* ────────────────────────────────────────────────────────────
+   3. TOP 10 PRODUCTOS — Bar horizontal
+──────────────────────────────────────────────────────────── */
+async function cargarTopProductos() {
+    const canvas = document.getElementById('chartTopProductos');
+    if (!canvas) return;
+
+    const data = await fetch('/graficas/api/top-productos').then(r => r.json());
+    destroyChart('topProductos');
+
+    if (!data.labels || data.labels.length === 0) {
+        canvas.closest('.chart-body').innerHTML = emptyState('Sin datos en los últimos 30 días');
+        return;
+    }
+
+    const ctx = canvas.getContext('2d');
+    
+    charts['topProductos'] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                label: 'Unidades vendidas',
+                data: data.cantidades,
+                backgroundColor: PALETTE,
+                borderRadius: 5,
+                borderSkipped: false,
+                barThickness: 18
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true, 
+            maintainAspectRatio: false,
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        afterLabel: (ctx) => '  Ingresos: ' + fmtSoles(data.ingresos[ctx.dataIndex])
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { color: '#f1f5f9' },
+                    border: { display: false },
+                    ticks: { stepSize: 1 }
+                },
+                y: {
+                    grid: { display: false },
+                    border: { display: false },
+                    ticks: {
+                        font: { size: 10.5 },
+                        callback: function(val) {
+                            const lbl = data.labels[val] || '';
+                            return lbl.length > 22 ? lbl.slice(0, 22) + '…' : lbl;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+/* ────────────────────────────────────────────────────────────
+   4. CATEGORÍAS — Donut
+──────────────────────────────────────────────────────────── */
+async function cargarCategorias() {
+    const canvas = document.getElementById('chartCategoria');
+    if (!canvas) return;
+
+    const data = await fetch('/graficas/api/ventas-por-categoria').then(r => r.json());
+    destroyChart('chartCategoria');
+
+    if (!data.labels || data.labels.length === 0) {
+        canvas.closest('.chart-body').innerHTML = emptyState('Sin datos en los últimos 30 días');
+        return;
+    }
+
+    const ctx = canvas.getContext('2d');
+    charts['chartCategoria'] = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                data: data.totales,
+                backgroundColor: PALETTE.slice(0, data.labels.length),
+                borderWidth: 0,
+                hoverOffset: 6
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            cutout: '70%',
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: ctx => ' ' + fmtSoles(ctx.raw) +
+                               ' (' + data.porcentajes[ctx.dataIndex] + '%)'
+                    }
+                }
+            }
+        }
+    });
+
+    const leg = document.getElementById('legendCategoria');
+    if (leg && data.labels) {
+        leg.innerHTML = data.labels.map((l, i) =>
+            `<div class="legend-item">
+                <span class="legend-dot" style="background:${PALETTE[i]};border-radius:50%;"></span>
+                <span>${l} · ${data.porcentajes[i]}%</span>
+             </div>`).join('');
+    }
+}
+
+/* ────────────────────────────────────────────────────────────
+   5. COMPARATIVA SEMANAS — Grouped Bar
+──────────────────────────────────────────────────────────── */
+async function cargarComparativa() {
+    const data = await fetch('/graficas/api/comparativa-semanas').then(r => r.json());
+    destroyChart('comparativa');
+
+    const ctx = document.getElementById('chartComparativa').getContext('2d');
+    charts['comparativa'] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.labels || [],
+            datasets: [
+                {
+                    label: 'Esta semana',
+                    data: data.actual || [],
+                    backgroundColor: '#2563eb',
+                    borderRadius: 5,
+                    borderSkipped: false,
+                    barPercentage: .55
+                },
+                {
+                    label: 'Semana pasada',
+                    data: data.anterior || [],
+                    backgroundColor: '#cbd5e1',
+                    borderRadius: 5,
+                    borderSkipped: false,
+                    barPercentage: .55
+                }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: { label: ctx => ' ' + ctx.dataset.label + ': ' + fmtSoles(ctx.raw) }
+                }
+            },
+            scales: {
+                x: { grid: { display: false }, border: { display: false } },
+                y: {
+                    grid: { color: '#f1f5f9' },
+                    border: { display: false },
+                    ticks: { callback: v => 'S/' + (v >= 1000 ? (v/1000).toFixed(1)+'k' : v) }
+                }
+            }
+        }
+    });
+}
+
+/* ────────────────────────────────────────────────────────────
+   6. TICKET PROMEDIO — Line con área
+──────────────────────────────────────────────────────────── */
+async function cargarTicket() {
+    const data = await fetch('/graficas/api/ticket-promedio').then(r => r.json());
+    destroyChart('ticket');
+
+    const ctx = document.getElementById('chartTicket').getContext('2d');
+    const grad = ctx.createLinearGradient(0, 0, 0, 220);
+    grad.addColorStop(0, 'rgba(124,58,237,.18)');
+    grad.addColorStop(1, 'rgba(124,58,237,0)');
+
+    const labels = (data.labels || []).map(d => {
+        const parts = d.split('-');
+        return parts.length === 3 ? parts[2] + '/' + parts[1] : d;
+    });
+
+    charts['ticket'] = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels,
+            datasets: [{
+                label: 'Ticket promedio',
+                data: data.tickets || [],
+                borderColor: '#7c3aed',
+                backgroundColor: grad,
+                borderWidth: 2.5,
+                pointRadius: 3,
+                pointBackgroundColor: '#fff',
+                pointBorderColor: '#7c3aed',
+                pointBorderWidth: 2,
+                tension: .35,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: ctx => ' Ticket: ' + fmtSoles(ctx.raw),
+                        afterLabel: (ctx) => '  Pedidos: ' + (data.pedidos[ctx.dataIndex] || 0)
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    border: { display: false },
+                    ticks: {
+                        maxTicksLimit: 10,
+                        maxRotation: 0
+                    }
+                },
+                y: {
+                    grid: { color: '#f1f5f9' },
+                    border: { display: false },
+                    ticks: { callback: v => 'S/' + v }
+                }
+            }
+        }
+    });
+}
+
+/* ────────────────────────────────────────────────────────────
+   7. HEATMAP — tabla custom con colores interpolados
+──────────────────────────────────────────────────────────── */
+async function cargarHeatmap() {
+    const data = await fetch('/graficas/api/heatmap-trafico').then(r => r.json());
+    const wrap = document.getElementById('heatmapWrap');
+    if (!wrap) return;
+
+    const dias   = data.dias   || ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+    const puntos = data.data   || [];
+    const maxVal = data.maxVal || 1;
+
+    const mapa = {};
+    dias.forEach(d => { mapa[d] = {}; });
+    puntos.forEach(p => { 
+        if (mapa[p.y]) { mapa[p.y][p.x] = p.v; }
+    });
+
+    const horas = Array.from({length: 24}, (_, i) => i);
+
+    function interpColor(ratio) {
+        if (ratio <= 0) return '#f8fafc';
+        const r = Math.round(241 + (30  - 241) * ratio);
+        const g = Math.round(245 + (64  - 245) * ratio);
+        const b = Math.round(249 + (175 - 249) * ratio);
+        return `rgb(${r},${g},${b})`;
+    }
+
+    let html = '<table class="heatmap-table"><thead><tr><th class="dia-label"></th>';
+    horas.forEach(h => {
+        html += `<th class="hora-label">${h.toString().padStart(2,'0')}`;
+        html += h % 2 === 0 ? 'h' : '';
+        html += '</th>';
+    });
+    html += '</tr></thead><tbody>';
+
+    dias.forEach(dia => {
+        html += `<tr><th class="dia-label">${dia}</th>`;
+        horas.forEach(h => {
+            const val   = (mapa[dia] && mapa[dia][h]) ? mapa[dia][h] : 0;
+            const ratio = maxVal > 0 ? Math.min(val / maxVal, 1) : 0;
+            const bg    = interpColor(ratio);
+            const title = `${dia} ${h}h → S/ ${val.toFixed(2)}`;
+            html += `<td><span class="hm-cell" style="background:${bg};" title="${title}"></span></td>`;
+        });
+        html += '</tr>';
+    });
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+
+    const leyDiv = document.getElementById('heatmapLeyenda');
+    if (leyDiv) {
+        const steps = 8;
+        leyDiv.innerHTML = Array.from({length: steps}, (_, i) => {
+            const bg = interpColor(i / (steps - 1));
+            return `<div style="width:18px;height:12px;background:${bg};border-radius:2px;"></div>`;
+        }).join('');
+    }
+}
+
+/* ────────────────────────────────────────────────────────────
+   EMPTY STATE HELPER
+──────────────────────────────────────────────────────────── */
+function emptyState(msg) {
+    return `<div class="empty-chart">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M3 3v18h18"/><path d="m7 16 4-4 4 4 4-4"/>
+        </svg>
+        <span>${msg}</span>
+    </div>`;
+}
+
+/* ────────────────────────────────────────────────────────────
+   CARGA INICIAL Y RECARGA
+──────────────────────────────────────────────────────────── */
+async function cargarTodo() {
+    await Promise.allSettled([
+        cargarKpis(),
+        cargarVentasMes(),
+        cargarEstadoHoy(),
+        cargarTopProductos(),
+        cargarCategorias(),
+        cargarComparativa(),
+        cargarTicket(),
+        cargarHeatmap()
+    ]);
+}
+
+function recargarTodo() {
+    ['ventas','pedidos','ticket','estado'].forEach(id => {
+        const el = document.getElementById('kv-' + id);
+        if (el) { el.classList.add('loading'); el.textContent = '···'; }
+    });
+    document.getElementById('heatmapWrap').innerHTML =
+        '<div class="canvas-skeleton skeleton" style="height:190px;"></div>';
+
+    cargarTodo();
+}
+
+document.addEventListener('DOMContentLoaded', cargarTodo);
+setInterval(cargarTodo, 5 * 60 * 1000);
+</script>
+</section>
+</body>
+</html>

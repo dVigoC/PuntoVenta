@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="'Ticket · ' + ${pedido.numeroPedido}">Ticket de Venta</title>
+    <style>
+        /* ══════════════════════════════════════════════════════
+           RESET Y BASE
+        ══════════════════════════════════════════════════════ */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --primary:  #1d3557;
+            --border:   #dee2e6;
+            --text:     #212529;
+            --text-sub: #6c757d;
+            --bg:       #f8f9fa;
+            --radius:   8px;
+            --shadow:   0 2px 12px rgba(0,0,0,.10);
+        }
+
+        body {
+            font-family: 'Courier New', 'Courier', monospace;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 1.5rem 1rem 3rem;
+        }
+
+        /* ══════════════════════════════════════════════════════
+           BARRA DE ACCIONES
+        ══════════════════════════════════════════════════════ */
+        .action-bar {
+            width: 100%;
+            max-width: 440px;
+            display: flex;
+            align-items: center;
+            gap: .6rem;
+            margin-bottom: 1.2rem;
+            flex-wrap: wrap;
+        }
+
+        .btn-action {
+            display: inline-flex;
+            align-items: center;
+            gap: .4rem;
+            padding: .52rem 1.1rem;
+            font-size: .84rem;
+            font-weight: 700;
+            font-family: 'Inter', system-ui, sans-serif;
+            border: none;
+            border-radius: var(--radius);
+            cursor: pointer;
+            text-decoration: none;
+            transition: filter .18s, transform .1s;
+            white-space: nowrap;
+        }
+        .btn-action:active { transform: scale(.97); }
+        .btn-action:hover  { filter: brightness(.88); }
+        .btn-action svg    { width: 15px; height: 15px; }
+
+        .btn-print { background: #1d3557; color: #fff; }
+        .btn-back  { background: #f1f5f9; color: #334155;
+                     border: 1px solid #e2e8f0; }
+
+        /* ══════════════════════════════════════════════════════
+           TICKET
+           Sigue el formato de TICKET DE VENTA no fiscal (art. 8
+           R.S. 007-99/SUNAT): razón social, RUC, dirección,
+           número de documento interno, fecha, detalle e IGV.
+        ══════════════════════════════════════════════════════ */
+        .ticket {
+            width: 100%;
+            max-width: 380px;
+            background: #fff;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 1.4rem 1.6rem 1.8rem;
+            border: 1px solid var(--border);
+        }
+
+        /* ─── Encabezado empresa ─────────────────────────────── */
+        .ticket-head {
+            text-align: center;
+            border-bottom: 2px dashed var(--border);
+            padding-bottom: 1rem;
+            margin-bottom: .9rem;
+        }
+
+        /* Logo + Nombre en la misma fila: logo izquierda, nombre centrado */
+        .head-brand {
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+            margin-bottom: .65rem;
+        }
+
+        .head-logo {
+            width: 48px;
+            height: 48px;
+            object-fit: contain;
+            flex-shrink: 0;
+            /* Forzar blanco y negro en impresión y pantalla */
+            filter: grayscale(100%) contrast(1.4);
+            border-radius: 4px;
+        }
+
+        .head-logo-placeholder {
+            width: 48px;
+            height: 48px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1.5px dashed #ced4da;
+            border-radius: 4px;
+            color: #adb5bd;
+            font-size: .62rem;
+            text-align: center;
+            line-height: 1.2;
+        }
+
+        .head-nombre {
+            flex: 1;
+            text-align: center;
+        }
+
+        .head-nombre h1 {
+            font-size: 1rem;
+            font-weight: 900;
+            color: var(--text);
+            text-transform: uppercase;
+            letter-spacing: .05em;
+            line-height: 1.25;
+        }
+
+        .head-nombre .ruc {
+            font-size: .75rem;
+            color: var(--text-sub);
+            margin-top: .15rem;
+        }
+
+        .head-nombre .tipo-doc {
+            display: inline-block;
+            margin-top: .45rem;
+            font-size: .78rem;
+            font-weight: 900;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            border: 2px solid var(--text);
+            padding: .2rem .7rem;
+            border-radius: 4px;
+        }
+
+        .head-direccion {
+            font-size: .72rem;
+            color: var(--text-sub);
+            text-align: center;
+            margin-top: .4rem;
+            line-height: 1.4;
+        }
+
+        /* ─── Meta del pedido ────────────────────────────────── */
+        .meta-block {
+            border-bottom: 1px dashed var(--border);
+            padding-bottom: .8rem;
+            margin-bottom: .8rem;
+        }
+
+        .meta-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            font-size: .77rem;
+            color: var(--text-sub);
+            margin-bottom: .18rem;
+        }
+        .meta-row strong { color: var(--text); }
+
+        /* ─── Tabla de productos ─────────────────────────────── */
+        .items-block {
+            border-bottom: 1px dashed var(--border);
+            padding-bottom: .85rem;
+            margin-bottom: .85rem;
+        }
+
+        .items-header {
+            display: grid;
+            grid-template-columns: 1fr 2.2rem 5.5rem 5.5rem;
+            gap: .2rem;
+            font-size: .67rem;
+            font-weight: 700;
+            letter-spacing: .1em;
+            text-transform: uppercase;
+            color: var(--text-sub);
+            padding-bottom: .35rem;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: .35rem;
+        }
+        .items-header span:not(:first-child) { text-align: right; }
+
+        .item-row {
+            display: grid;
+            grid-template-columns: 1fr 2.2rem 5.5rem 5.5rem;
+            gap: .2rem;
+            font-size: .79rem;
+            color: var(--text);
+            padding: .28rem 0;
+            align-items: start;
+            border-bottom: 1px dotted #eeeeee;
+        }
+        .item-row:last-child { border-bottom: none; }
+        .item-row > span:not(:first-child) { text-align: right; }
+
+        .item-nombre { font-weight: 600; line-height: 1.3; }
+        .item-anulado { opacity: .45; text-decoration: line-through; }
+
+        /* ─── Totales ────────────────────────────────────────── */
+        .totales-block {
+            border-bottom: 1px dashed var(--border);
+            padding-bottom: .85rem;
+            margin-bottom: .85rem;
+        }
+
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: .79rem;
+            color: var(--text-sub);
+            margin-bottom: .22rem;
+        }
+
+        .total-row.grand {
+            font-size: .97rem;
+            font-weight: 900;
+            color: var(--text);
+            padding-top: .45rem;
+            margin-top: .25rem;
+            border-top: 2px solid var(--text);
+            margin-bottom: 0;
+        }
+
+        /* ─── Pie del ticket ─────────────────────────────────── */
+        .ticket-foot {
+            text-align: center;
+            font-size: .72rem;
+            color: var(--text-sub);
+            line-height: 1.65;
+        }
+
+        .foot-gracias {
+            font-size: .84rem;
+            font-weight: 800;
+            color: var(--text);
+            letter-spacing: .04em;
+            margin-bottom: .3rem;
+        }
+
+        .foot-dev {
+            font-size: .62rem;
+            color: #adb5bd;
+            margin-top: .55rem;
+            border-top: 1px dotted var(--border);
+            padding-top: .5rem;
+        }
+
+        /* ══════════════════════════════════════════════════════
+           IMPRESIÓN
+        ══════════════════════════════════════════════════════ */
+        @media print {
+            body {
+                background: #fff;
+                padding: 0;
+                display: block;
+            }
+
+            .action-bar { display: none !important; }
+
+            .ticket {
+                box-shadow: none;
+                border: none;
+                border-radius: 0;
+                max-width: 100%;
+                padding: 0;
+                margin: 0;
+            }
+
+            /* Logo y texto en B/N */
+            .head-logo {
+                filter: grayscale(100%) contrast(1.6);
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            @page {
+                size: 80mm auto;
+                margin: 4mm;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ══ BARRA DE ACCIONES ═════════════════════════════════════════════════ -->
+    <div class="action-bar">
+        <a th:href="@{/pedidos/{id}(id=${pedido.id})}" class="btn-action btn-back">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="15 18 9 12 15 6"/>
+            </svg>
+            Volver al pedido
+        </a>
+
+        <button class="btn-action btn-print" onclick="window.print()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 6 2 18 2 18 9"/>
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+                <rect x="6" y="14" width="12" height="8"/>
+            </svg>
+            Imprimir / Guardar PDF
+        </button>
+    </div>
+
+    <!-- ══ TICKET ════════════════════════════════════════════════════════════ -->
+    <div class="ticket">
+
+        <!-- ─── Encabezado empresa ─────────────────────────── -->
+        <div class="ticket-head">
+
+            <!-- Logo izquierda + Nombre centrado -->
+            <div class="head-brand">
+                <!-- Con logo -->
+                <img th:if="${empresa != null and empresa.logoUrl != null}"
+                     th:src="${empresa.logoUrl}"
+                     class="head-logo"
+                     alt="Logo"
+                     onerror="this.style.display='none'">
+                <!-- Sin logo: placeholder -->
+                <div th:if="${empresa == null or empresa.logoUrl == null}"
+                     class="head-logo-placeholder">SIN<br>LOGO</div>
+
+                <div class="head-nombre">
+                    <h1 th:text="${empresa != null ? empresa.nombre : 'RESTAURANTE'}">
+                        MI RESTAURANTE
+                    </h1>
+                    <div class="ruc"
+                         th:if="${empresa != null and empresa.ruc != null}"
+                         th:text="'RUC: ' + ${empresa.ruc}">RUC: 20000000000</div>
+                    <!-- Tipo de comprobante: TICKET interno (no SUNAT aún) -->
+                    <div class="tipo-doc">TICKET DE VENTA</div>
+                </div>
+            </div>
+
+            <!-- Dirección y contacto -->
+            <div class="head-direccion"
+                 th:if="${empresa != null}">
+                <span th:if="${empresa.direccion != null}"
+                      th:text="${empresa.direccion}">Dirección</span><br
+                     th:if="${empresa.telefono != null}">
+                <span th:if="${empresa.telefono != null}"
+                      th:text="'Tel: ' + ${empresa.telefono}">Tel</span>
+            </div>
+        </div>
+
+        <!-- ─── Meta del pedido ─────────────────────────────── -->
+        <div class="meta-block">
+            <div class="meta-row">
+                <span>N° Pedido</span>
+                <strong th:text="${pedido.numeroPedido}">PED-...</strong>
+            </div>
+            <div class="meta-row">
+                <span>Mesa</span>
+                <strong th:text="${pedido.mesa.area.nombre + ' · ' + pedido.mesa.numero}">A · 1</strong>
+            </div>
+            <div class="meta-row">
+                <span>Fecha</span>
+                <strong th:text="${#temporals.format(pedido.creadoEn, 'dd/MM/yyyy')}">01/01/2025</strong>
+            </div>
+            <div class="meta-row">
+                <span>Hora</span>
+                <strong th:text="${#temporals.format(pedido.creadoEn, 'HH:mm')}">12:00</strong>
+            </div>
+        </div>
+
+        <!-- ─── Productos ───────────────────────────────────── -->
+        <div class="items-block">
+            <div class="items-header">
+                <span>Descripción</span>
+                <span>Cant.</span>
+                <span>P.Unit</span>
+                <span>Total</span>
+            </div>
+
+            <div th:each="item : ${pedido.detalles}"
+                 class="item-row"
+                 th:classappend="${item.estadoItem == 'ANULADO' ? 'item-anulado' : ''}">
+                <span class="item-nombre"
+                      th:text="${item.producto.nombre}">Producto</span>
+                <span th:text="${item.cantidad}">1</span>
+                <span>
+                    S/ <span th:text="${#numbers.formatDecimal(item.precioUnitario, 1, 2)}">0.00</span>
+                </span>
+                <span>
+                    S/ <span th:text="${item.estadoItem == 'ANULADO' ? '0.00' :
+                                        #numbers.formatDecimal(item.subtotal, 1, 2)}">0.00</span>
+                </span>
+            </div>
+        </div>
+
+        <!-- ─── Totales ─────────────────────────────────────── -->
+        <div class="totales-block">
+            <div class="total-row">
+                <span>OP. GRAVADA</span>
+                <span>S/ <span th:text="${#numbers.formatDecimal(pedido.subtotal, 1, 2)}">0.00</span></span>
+            </div>
+            <div class="total-row">
+                <span>IGV (18%)</span>
+                <span>S/ <span th:text="${#numbers.formatDecimal(pedido.igv, 1, 2)}">0.00</span></span>
+            </div>
+            <div class="total-row"
+                 th:if="${pedido.descuento != null and pedido.descuento.compareTo(T(java.math.BigDecimal).ZERO) > 0}">
+                <span>DESCUENTO</span>
+                <span>- S/ <span th:text="${#numbers.formatDecimal(pedido.descuento, 1, 2)}">0.00</span></span>
+            </div>
+            <div class="total-row grand">
+                <span>TOTAL A PAGAR</span>
+                <span>S/ <span th:text="${#numbers.formatDecimal(pedido.total, 1, 2)}">0.00</span></span>
+            </div>
+        </div>
+
+        <!-- ─── Pie ─────────────────────────────────────────── -->
+        <div class="ticket-foot">
+            <div class="foot-gracias"
+                 th:text="${empresa != null and empresa.pieFactura != null ?
+                            empresa.pieFactura : '¡Gracias por su visita!'}">
+                ¡Gracias por su visita!
+            </div>
+
+            <div>Este documento no es comprobante de pago fiscal.</div>
+            <div>Para boleta o factura, solicitarla al cajero.</div>
+
+            <div class="foot-dev"
+                 th:if="${empresa != null and empresa.desarrollador != null}"
+                 th:text="${empresa.desarrollador}">
+                Desarrollado por TuEmpresa Dev
+            </div>
+        </div>
+
+    </div><!-- /ticket -->
+
+</body>
+</html>

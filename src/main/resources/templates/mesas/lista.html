@@ -1,0 +1,1308 @@
+<!DOCTYPE html>
+<html lang="es"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      th:replace="~{layout :: layout('Mesas', ~{::main})}">
+<body>
+<main>
+
+<style>
+    /* ── Stats bar ───────────────────────────────────────────────── */
+    .stats-bar {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: .75rem;
+        margin-bottom: 1.25rem;
+    }
+    .stat-chip {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: .9rem 1.1rem;
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+        box-shadow: var(--shadow);
+    }
+    .stat-icon {
+        width: 40px; height: 40px;
+        border-radius: 10px;
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+    }
+    .stat-icon svg { width: 19px; height: 19px; }
+    .stat-icon.blue   { background: #dbeafe; color: #1d4ed8; }
+    .stat-icon.green  { background: #dcfce7; color: #15803d; }
+    .stat-icon.red    { background: #fee2e2; color: #b91c1c; }
+    .stat-icon.yellow { background: #fef9c3; color: #854d0e; }
+    .stat-icon.slate  { background: #f1f5f9; color: #475569; }
+    .stat-value { font-size: 1.4rem; font-weight: 700; line-height: 1; color: var(--text-main); }
+    .stat-label { font-size: .72rem; color: var(--text-sub); margin-top: 3px; }
+
+    /* ── Toolbar ─────────────────────────────────────────────────── */
+    .toolbar {
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+        flex-wrap: wrap;
+    }
+    .search-wrap {
+        position: relative;
+        flex: 1;
+        min-width: 200px;
+        max-width: 280px;
+    }
+    .search-wrap svg {
+        position: absolute; left: .7rem; top: 50%;
+        transform: translateY(-50%);
+        width: 15px; height: 15px;
+        color: var(--text-sub);
+        pointer-events: none;
+    }
+    .search-wrap input {
+        width: 100%;
+        padding: .5rem .8rem .5rem 2.2rem;
+        font-size: .86rem;
+        font-family: inherit;
+        border: 1.5px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface);
+        color: var(--text-main);
+        outline: none;
+        transition: border-color .2s, box-shadow .2s;
+    }
+    .search-wrap input:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(29,53,87,.07);
+    }
+    .filter-select {
+        padding: .48rem .8rem;
+        font-size: .84rem;
+        font-family: inherit;
+        border: 1.5px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface);
+        color: var(--text-main);
+        cursor: pointer;
+        outline: none;
+        min-width: 160px;
+        transition: border-color .2s;
+    }
+    .filter-select:focus { border-color: var(--primary); }
+
+    /* ── Botón Areas ─────────────────────────────────────────────── */
+    .btn-area {
+        background: #4f46e5;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        padding: .48rem .9rem;
+        font-size: .82rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        transition: background .15s;
+        font-family: inherit;
+        white-space: nowrap;
+    }
+    .btn-area:hover { background: #4338ca; }
+    .btn-area svg { width: 15px; height: 15px; }
+
+    /* ── Tabla: celda mesa ───────────────────────────────────────── */
+    .mesa-numero-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        background: #f1f5f9;
+        border: 1.5px solid var(--border);
+        font-size: 1rem;
+        font-weight: 800;
+        color: var(--primary);
+        flex-shrink: 0;
+    }
+    .mesa-cell {
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+    }
+    .mesa-info .mesa-num-label {
+        font-weight: 700;
+        font-size: .9rem;
+        color: var(--text-main);
+    }
+    .mesa-info .mesa-area-sub {
+        font-size: .73rem;
+        color: var(--text-sub);
+        margin-top: 1px;
+    }
+
+    .area-pill {
+        display: inline-flex; align-items: center; gap: .25rem;
+        padding: .22rem .65rem;
+        border-radius: 20px;
+        font-size: .72rem; font-weight: 700;
+        background: #e0e7ff; color: #3730a3;
+        text-transform: uppercase; letter-spacing: .04em;
+        white-space: nowrap;
+    }
+
+    /* Estado badges */
+    .badge-libre      { background: #dcfce7; color: #15803d; }
+    .badge-ocupada    { background: #fee2e2; color: #b91c1c; }
+    .badge-reservada  { background: #fef9c3; color: #854d0e; }
+    .badge-inactiva   { background: #f1f5f9; color: #64748b; }
+
+    .estado-dot {
+        display: inline-block;
+        width: 7px; height: 7px;
+        border-radius: 50%;
+        margin-right: 5px;
+        vertical-align: middle;
+    }
+    .dot-libre     { background: #15803d; }
+    .dot-ocupada   { background: #b91c1c; }
+    .dot-reservada { background: #854d0e; }
+    .dot-inactiva  { background: #94a3b8; }
+
+    .actions-cell { display: flex; gap: .4rem; align-items: center; justify-content: center; }
+
+    /* ── Empty state ─────────────────────────────────────────────── */
+    .empty-state {
+        text-align: center;
+        padding: 3.5rem 1rem;
+        color: var(--text-sub);
+    }
+    .empty-state svg { width: 52px; height: 52px; opacity: .25; margin-bottom: .85rem; }
+    .empty-state p { font-size: .9rem; }
+
+    /* ── Paginación info ─────────────────────────────────────────── */
+    .pag-info {
+        font-size: .78rem; color: var(--text-sub);
+        text-align: center; padding-top: .3rem;
+    }
+
+    /* ══════════════════════════════════════════════════════════════
+       MODALES — GRID Y SECCIONES
+    ══════════════════════════════════════════════════════════════ */
+    .form-grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0 1rem;
+    }
+    .form-grid-2 .full { grid-column: 1 / -1; }
+
+    .form-section-label {
+        font-size: .68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .09em;
+        color: var(--text-sub);
+        margin: 1rem 0 .6rem;
+        padding-bottom: .35rem;
+        border-bottom: 1px solid var(--border);
+    }
+    .form-section-label:first-child { margin-top: 0; }
+
+    /* Switch activo */
+    .switch-row { display: flex; align-items: center; gap: .6rem; padding: .4rem 0; }
+    .switch { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .switch-slider {
+        position: absolute; inset: 0;
+        background: #cbd5e1; border-radius: 22px;
+        cursor: pointer; transition: background .2s;
+    }
+    .switch-slider::before {
+        content: '';
+        position: absolute;
+        width: 16px; height: 16px;
+        left: 3px; top: 3px;
+        background: #fff; border-radius: 50%;
+        transition: transform .2s;
+    }
+    .switch input:checked + .switch-slider { background: #344e41; }
+    .switch input:checked + .switch-slider::before { transform: translateX(18px); }
+    .switch-label { font-size: .86rem; font-weight: 500; color: var(--text-main); }
+
+    /* Confirm modal */
+    .confirm-modal { max-width: 400px; }
+    .confirm-icon {
+        width: 52px; height: 52px;
+        border-radius: 50%;
+        background: #fee2e2;
+        display: flex; align-items: center; justify-content: center;
+        margin: 0 auto 1rem;
+    }
+    .confirm-icon svg { width: 24px; height: 24px; color: #991b1b; }
+    .confirm-body { text-align: center; padding: 1.5rem 1.25rem 1rem; }
+    .confirm-body h3 { font-size: .95rem; font-weight: 700; margin-bottom: .4rem; }
+    .confirm-body p  { font-size: .84rem; color: var(--text-sub); }
+
+    /* ══════════════════════════════════════════════════════════════
+       MODAL ÁREAS (ancho mayor)
+    ══════════════════════════════════════════════════════════════ */
+    .modal-area { max-width: 580px; }
+
+    .area-list {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow: hidden;
+        margin-bottom: 1rem;
+    }
+    .area-list-item {
+        display: flex; align-items: center;
+        justify-content: space-between;
+        padding: .65rem 1rem;
+        border-bottom: 1px solid var(--border);
+        gap: .5rem;
+    }
+    .area-list-item:last-child { border-bottom: none; }
+    .area-list-item:hover { background: #f8fafc; }
+
+    .area-info { flex: 1; min-width: 0; }
+    .area-nombre {
+        font-weight: 600; font-size: .86rem;
+        color: var(--text-main);
+        letter-spacing: .02em;
+    }
+    .area-desc {
+        font-size: .74rem; color: var(--text-sub);
+        margin-top: 1px;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .area-mesas-count {
+        font-size: .7rem;
+        background: #e0e7ff;
+        border: 1px solid #c7d2fe;
+        border-radius: 6px;
+        padding: .1rem .45rem;
+        color: #3730a3;
+        font-weight: 700;
+        margin-left: .4rem;
+        flex-shrink: 0;
+        white-space: nowrap;
+    }
+    .area-actions { display: flex; gap: .35rem; flex-shrink: 0; }
+
+    .badge-area-activo   { background: #dcfce7; color: #15803d; }
+    .badge-area-inactivo { background: #f1f5f9; color: #64748b; }
+    .badge-area-tag {
+        display: inline-block;
+        padding: .15rem .45rem;
+        border-radius: 20px;
+        font-size: .67rem; font-weight: 700;
+        margin-right: .3rem;
+    }
+
+    .area-empty {
+        text-align: center; padding: 1.5rem;
+        color: var(--text-sub); font-size: .85rem;
+    }
+
+    /* Sub-form editar área */
+    .area-form-inline {
+        background: #f8fafc;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-top: .5rem;
+    }
+
+    /* Campo número de mesa — destacado */
+    .numero-input-wrap {
+        position: relative;
+    }
+    .numero-input-wrap .numero-prefix {
+        position: absolute;
+        left: .8rem; top: 50%;
+        transform: translateY(-50%);
+        font-size: .9rem;
+        font-weight: 700;
+        color: var(--primary);
+        pointer-events: none;
+    }
+    .numero-input-wrap input {
+        padding-left: 2rem;
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--primary);
+    }
+
+    /* Estado select con colores */
+    .estado-select-wrap { position: relative; }
+    .estado-select-wrap select {
+        appearance: none;
+        padding-right: 2rem;
+    }
+</style>
+
+<!-- ══ FLASH MESSAGES ══════════════════════════════════════════════════════ -->
+<div th:if="${flashMensaje != null}"
+     th:classappend="${flashTipo == 'success' ? 'success' : 'error'}"
+     class="alert-flash">
+    <svg th:if="${flashTipo == 'success'}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" style="width:16px;height:16px;flex-shrink:0">
+        <polyline points="20 6 9 17 4 12"/>
+    </svg>
+    <svg th:unless="${flashTipo == 'success'}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" style="width:16px;height:16px;flex-shrink:0">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    <span th:text="${flashMensaje}"></span>
+</div>
+
+<!-- ══ STATS BAR ═══════════════════════════════════════════════════════════ -->
+<div class="stats-bar">
+    <div class="stat-chip">
+        <div class="stat-icon blue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 6h18M3 12h18M3 18h18"/>
+            </svg>
+        </div>
+        <div>
+            <div class="stat-value" th:text="${totalMesas}">0</div>
+            <div class="stat-label">Total mesas</div>
+        </div>
+    </div>
+    <div class="stat-chip">
+        <div class="stat-icon green">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 12l2 2 4-4"/><rect x="3" y="3" width="18" height="18" rx="2"/>
+            </svg>
+        </div>
+        <div>
+            <div class="stat-value" th:text="${mesasLibres}">0</div>
+            <div class="stat-label">Libres</div>
+        </div>
+    </div>
+    <div class="stat-chip">
+        <div class="stat-icon red">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 8v4l3 3"/>
+            </svg>
+        </div>
+        <div>
+            <div class="stat-value" th:text="${mesasOcupadas}">0</div>
+            <div class="stat-label">Ocupadas</div>
+        </div>
+    </div>
+    <div class="stat-chip">
+        <div class="stat-icon yellow">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+        </div>
+        <div>
+            <div class="stat-value" th:text="${mesasReservadas}">0</div>
+            <div class="stat-label">Reservadas</div>
+        </div>
+    </div>
+    <div class="stat-chip">
+        <div class="stat-icon slate">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+            </svg>
+        </div>
+        <div>
+            <div class="stat-value" th:text="${#lists.size(areas)}">0</div>
+            <div class="stat-label">Áreas</div>
+        </div>
+    </div>
+</div>
+
+<!-- ══ CARD PRINCIPAL ══════════════════════════════════════════════════════ -->
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 style="width:16px;height:16px;vertical-align:middle;margin-right:.35rem">
+                <path d="M3 6h18M3 12h18M3 18h18"/>
+            </svg>
+            Gestión de Mesas
+        </span>
+
+        <div class="toolbar" style="flex:1; justify-content:flex-end;">
+            <form method="get" action="/mesas" style="display:contents;">
+                <!-- Buscador -->
+                <div class="search-wrap">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    <input type="text" name="busqueda"
+                           th:value="${busqueda}"
+                           placeholder="Número o área…"
+                           autocomplete="off">
+                </div>
+
+                <!-- Filtro área -->
+                <select name="areaId" class="filter-select" onchange="this.form.submit()">
+                    <option value="">Todas las áreas</option>
+                    <option th:each="a : ${areas}"
+                            th:value="${a.id}"
+                            th:text="${a.nombre}"
+                            th:selected="${a.id == areaId}">ÁREA</option>
+                </select>
+
+                <!-- Filtro estado -->
+                <select name="estado" class="filter-select" onchange="this.form.submit()">
+                    <option value="">Todos los estados</option>
+                    <option value="LIBRE"     th:selected="${estado == 'LIBRE'}">Libre</option>
+                    <option value="OCUPADA"   th:selected="${estado == 'OCUPADA'}">Ocupada</option>
+                    <option value="RESERVADA" th:selected="${estado == 'RESERVADA'}">Reservada</option>
+                    <option value="INACTIVA"  th:selected="${estado == 'INACTIVA'}">Inactiva</option>
+                </select>
+
+                <button type="submit" class="btn btn-secondary btn-sm">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         style="width:14px;height:14px">
+                        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    Buscar
+                </button>
+            </form>
+
+            <!-- Botón Áreas -->
+            <button class="btn-area" id="btnGestionarAreas">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+                </svg>
+                Áreas
+            </button>
+
+            <!-- Botón nueva mesa -->
+            <button class="btn btn-create" id="btnNuevaMesa">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:15px;height:15px">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Nueva mesa
+            </button>
+        </div>
+    </div>
+
+    <!-- TABLA -->
+    <div class="table-responsive">
+        <table>
+            <thead>
+                <tr>
+                    <th style="width:42px">#</th>
+                    <th>Mesa</th>
+                    <th>Área</th>
+                    <th>Estado</th>
+                    <th>Activa</th>
+                    <th style="width:160px; text-align:center;">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Sin resultados -->
+                <tr th:if="${#lists.isEmpty(mesas)}">
+                    <td colspan="6">
+                        <div class="empty-state">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M3 6h18M3 12h18M3 18h18"/>
+                            </svg>
+                            <p>No se encontraron mesas</p>
+                        </div>
+                    </td>
+                </tr>
+
+                <!-- Filas -->
+                <tr th:each="m, stat : ${mesas}">
+                    <td style="color:var(--text-sub); font-size:.78rem;"
+                        th:text="${page.number * page.size + stat.index + 1}">1</td>
+
+                    <!-- Mesa número -->
+                    <td>
+                        <div class="mesa-cell">
+                            <div class="mesa-numero-badge" th:text="${m.numero}">1</div>
+                            <div class="mesa-info">
+                                <div class="mesa-num-label"
+                                     th:text="'Mesa ' + ${m.numero}">Mesa 1</div>
+                                <div class="mesa-area-sub"
+                                     th:text="${m.area?.nombre ?: '—'}">Área</div>
+                            </div>
+                        </div>
+                    </td>
+
+                    <!-- Área -->
+                    <td>
+                        <span class="area-pill" th:text="${m.area?.nombre ?: '—'}">ÁREA</span>
+                    </td>
+
+                    <!-- Estado -->
+                    <td>
+                        <span class="badge"
+                              th:classappend="${m.estado == 'LIBRE'     ? 'badge-libre'     :
+                                               m.estado == 'OCUPADA'   ? 'badge-ocupada'   :
+                                               m.estado == 'RESERVADA' ? 'badge-reservada' :
+                                                                          'badge-inactiva'}">
+                            <span class="estado-dot"
+                                  th:classappend="${m.estado == 'LIBRE'     ? 'dot-libre'     :
+                                                   m.estado == 'OCUPADA'   ? 'dot-ocupada'   :
+                                                   m.estado == 'RESERVADA' ? 'dot-reservada' :
+                                                                              'dot-inactiva'}">
+                            </span>
+                            <span th:text="${m.estado}">LIBRE</span>
+                        </span>
+                    </td>
+
+                    <!-- Activa -->
+                    <td>
+                        <span class="badge"
+                              th:classappend="${m.activo ? 'badge-active' : 'badge-inactive'}"
+                              th:text="${m.activo ? 'Activa' : 'Inactiva'}">—</span>
+                    </td>
+
+                    <!-- Acciones -->
+                    <td>
+                        <div class="actions-cell">
+                            <!-- Editar -->
+                            <button class="btn btn-edit btn-sm btn-editar-mesa"
+                                    th:data-id="${m.id}"
+                                    th:data-numero="${m.numero}"
+                                    th:data-areaid="${m.area != null ? m.area.id : ''}"
+                                    th:data-estado="${m.estado}"
+                                    th:data-activo="${m.activo}"
+                                    title="Editar mesa">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                     style="width:14px;height:14px">
+                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                </svg>
+                                Editar
+                            </button>
+
+                            <!-- Eliminar -->
+                            <button class="btn btn-delete btn-sm btn-eliminar-mesa"
+                                    th:data-id="${m.id}"
+                                    th:data-numero="${m.numero}"
+                                    title="Desactivar mesa">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                     style="width:14px;height:14px">
+                                    <polyline points="3 6 5 6 21 6"/>
+                                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                                    <path d="M10 11v6"/><path d="M14 11v6"/>
+                                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- PAGINACIÓN -->
+    <div th:if="${page.totalPages > 1}"
+         style="padding:.75rem 1.25rem; border-top:1px solid var(--border);">
+        <div class="pagination">
+            <a th:href="@{/mesas(pagina=${page.number - 1}, busqueda=${busqueda}, areaId=${areaId}, estado=${estado})}"
+               th:classappend="${page.first ? 'disabled' : ''}"
+               class="page-link">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:13px;height:13px"><polyline points="15 18 9 12 15 6"/></svg>
+            </a>
+            <th:block th:each="i : ${#numbers.sequence(0, page.totalPages - 1)}">
+                <a th:href="@{/mesas(pagina=${i}, busqueda=${busqueda}, areaId=${areaId}, estado=${estado})}"
+                   th:text="${i + 1}"
+                   th:classappend="${i == page.number ? 'active' : ''}"
+                   class="page-link">1</a>
+            </th:block>
+            <a th:href="@{/mesas(pagina=${page.number + 1}, busqueda=${busqueda}, areaId=${areaId}, estado=${estado})}"
+               th:classappend="${page.last ? 'disabled' : ''}"
+               class="page-link">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:13px;height:13px"><polyline points="9 18 15 12 9 6"/></svg>
+            </a>
+        </div>
+        <p class="pag-info">
+            Mostrando
+            <strong th:text="${page.number * page.size + 1}">1</strong>–<strong
+               th:text="${page.number * page.size + #lists.size(mesas)}">10</strong>
+            de <strong th:text="${page.totalElements}">0</strong> mesas
+        </p>
+    </div>
+</div><!-- /card -->
+
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     MODAL: CREAR MESA
+══════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalCrear">
+    <div class="modal">
+        <div class="modal-header">
+            <span class="modal-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:16px;height:16px;vertical-align:middle;margin-right:.35rem">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Nueva mesa
+            </span>
+            <button class="modal-close" onclick="cerrarModal('modalCrear')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:18px;height:18px">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+
+        <form th:action="@{/mesas/crear}" method="post" id="formCrear" novalidate>
+            <input type="hidden" th:name="${_csrf?.parameterName}" th:value="${_csrf?.token}"/>
+            <div class="modal-body">
+
+                <!-- Identificación -->
+                <div class="form-section-label">Identificación de la mesa</div>
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label class="form-label" for="c_numero">
+                            Número de mesa <span style="color:#b91c1c">*</span>
+                        </label>
+                        <div class="numero-input-wrap">
+                            <span class="numero-prefix">#</span>
+                            <input type="number" id="c_numero" name="numero"
+                                   class="form-control"
+                                   placeholder="ej. 1"
+                                   min="1" max="999"
+                                   autocomplete="off">
+                        </div>
+                        <div id="error_numero_crear" class="invalid-feedback" style="display:none;">
+                            Este número ya existe en el área seleccionada.
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="c_areaId">
+                            Área <span style="color:#b91c1c">*</span>
+                        </label>
+                        <select id="c_areaId" name="areaId" class="form-select">
+                            <option value="">— Seleccionar área —</option>
+                            <option th:each="a : ${areas}"
+                                    th:value="${a.id}"
+                                    th:text="${a.nombre}">ÁREA</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Estado -->
+                <div class="form-section-label">Estado inicial</div>
+                <div class="form-grid-2">
+                    <div class="form-group full">
+                        <label class="form-label" for="c_estado">Estado de la mesa</label>
+                        <div class="estado-select-wrap">
+                            <select id="c_estado" name="estado" class="form-select">
+                                <option value="LIBRE" selected>🟢 Libre</option>
+                                <option value="RESERVADA">🟡 Reservada</option>
+                                <option value="INACTIVA">⚪ Inactiva</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Configuración -->
+                <div class="form-section-label">Configuración</div>
+                <div class="switch-row">
+                    <label class="switch">
+                        <input type="checkbox" name="activo" value="true" checked id="c_activo">
+                        <span class="switch-slider"></span>
+                    </label>
+                    <span class="switch-label">Mesa activa en el sistema</span>
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="cerrarModal('modalCrear')">
+                    Cancelar
+                </button>
+                <button type="submit" class="btn btn-create">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         style="width:15px;height:15px">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    Guardar mesa
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     MODAL: EDITAR MESA
+══════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalEditar">
+    <div class="modal">
+        <div class="modal-header">
+            <span class="modal-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:16px;height:16px;vertical-align:middle;margin-right:.35rem">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+                Editar mesa
+            </span>
+            <button class="modal-close" onclick="cerrarModal('modalEditar')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:18px;height:18px">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+
+        <form id="formEditar" method="post" novalidate>
+            <input type="hidden" th:name="${_csrf?.parameterName}" th:value="${_csrf?.token}"/>
+            <div class="modal-body">
+
+                <div class="form-section-label">Identificación de la mesa</div>
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label class="form-label" for="e_numero">
+                            Número de mesa <span style="color:#b91c1c">*</span>
+                        </label>
+                        <div class="numero-input-wrap">
+                            <span class="numero-prefix">#</span>
+                            <input type="number" id="e_numero" name="numero"
+                                   class="form-control"
+                                   placeholder="ej. 1"
+                                   min="1" max="999"
+                                   readonly
+                                   style="background:#f3f4f6; cursor:not-allowed;">
+                        </div>
+                        <small style="font-size:.72rem; color:var(--text-sub); margin-top:.3rem; display:block;">
+                            El número no puede modificarse.
+                        </small>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="e_areaId">
+                            Área <span style="color:#b91c1c">*</span>
+                        </label>
+                        <select id="e_areaId" name="areaId" class="form-select">
+                            <option value="">— Seleccionar área —</option>
+                            <option th:each="a : ${areas}"
+                                    th:value="${a.id}"
+                                    th:text="${a.nombre}">ÁREA</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-section-label">Estado</div>
+                <div class="form-grid-2">
+                    <div class="form-group full">
+                        <label class="form-label" for="e_estado">Estado de la mesa</label>
+                        <div class="estado-select-wrap">
+                            <select id="e_estado" name="estado" class="form-select">
+                                <option value="LIBRE">🟢 Libre</option>
+                                <option value="OCUPADA">🔴 Ocupada</option>
+                                <option value="RESERVADA">🟡 Reservada</option>
+                                <option value="INACTIVA">⚪ Inactiva</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section-label">Configuración</div>
+                <div class="switch-row">
+                    <label class="switch">
+                        <input type="checkbox" name="activo" value="true" id="e_activo">
+                        <span class="switch-slider"></span>
+                    </label>
+                    <span class="switch-label">Mesa activa en el sistema</span>
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="cerrarModal('modalEditar')">
+                    Cancelar
+                </button>
+                <button type="submit" class="btn btn-edit">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         style="width:15px;height:15px">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    Guardar cambios
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     MODAL: CONFIRMAR DESACTIVAR
+══════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalEliminar">
+    <div class="modal confirm-modal">
+        <div class="modal-header">
+            <span class="modal-title">Confirmar desactivación</span>
+            <button class="modal-close" onclick="cerrarModal('modalEliminar')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:18px;height:18px">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+        <div class="confirm-body">
+            <div class="confirm-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                    <path d="M10 11v6"/><path d="M14 11v6"/>
+                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                </svg>
+            </div>
+            <h3>¿Desactivar esta mesa?</h3>
+            <p>La <strong id="eliminarNumeroMesa"></strong> quedará inactiva
+               y no estará disponible. Esta acción puede revertirse editando la mesa.</p>
+        </div>
+        <form id="formEliminarMesa" method="post">
+            <input type="hidden" th:name="${_csrf?.parameterName}" th:value="${_csrf?.token}"/>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="cerrarModal('modalEliminar')">
+                    Cancelar
+                </button>
+                <button type="submit" class="btn btn-delete">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         style="width:15px;height:15px">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                    </svg>
+                    Sí, desactivar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     MODAL: GESTIÓN DE ÁREAS
+══════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalAreas">
+    <div class="modal modal-area">
+        <div class="modal-header">
+            <span class="modal-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:16px;height:16px;vertical-align:middle;margin-right:.35rem">
+                    <path d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+                </svg>
+                Gestión de Áreas
+            </span>
+            <button class="modal-close" onclick="cerrarModal('modalAreas')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:18px;height:18px">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+
+        <div class="modal-body">
+
+            <!-- Lista áreas existentes -->
+            <div class="form-section-label">Áreas registradas</div>
+
+            <div class="area-list" th:if="${not #lists.isEmpty(todasAreas)}">
+                <div class="area-list-item" th:each="a : ${todasAreas}">
+                    <div class="area-info">
+                        <div class="area-nombre">
+                            <span class="badge-area-tag"
+                                  th:classappend="${a.activo ? 'badge-area-activo' : 'badge-area-inactivo'}"
+                                  th:text="${a.activo ? 'Activo' : 'Inactivo'}">—</span>
+                            <span th:text="${a.nombre}">NOMBRE</span>
+                            <span class="area-mesas-count"
+                                  th:text="${a.cantidadMesas != null ? a.cantidadMesas + ' mesas' : '0 mesas'}">
+                                0 mesas
+                            </span>
+                        </div>
+                        <div class="area-desc"
+                             th:text="${a.descripcion != null ? a.descripcion : 'Sin descripción'}">
+                            Sin descripción</div>
+                    </div>
+                    <div class="area-actions">
+                        <!-- Editar área -->
+                        <button class="btn btn-edit btn-sm btn-editar-area"
+                                th:data-id="${a.id}"
+                                th:data-nombre="${a.nombre}"
+                                th:data-desc="${a.descripcion != null ? a.descripcion : ''}"
+                                th:data-activo="${a.activo}"
+                                title="Editar área">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                 style="width:13px;height:13px">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                            </svg>
+                        </button>
+                        <!-- Desactivar área -->
+                        <form th:if="${a.activo}"
+                              th:action="@{/mesas/areas/{id}/desactivar(id=${a.id})}"
+                              method="post" style="display:inline;"
+                              class="form-desactivar-area">
+                            <input type="hidden" th:name="${_csrf?.parameterName}" th:value="${_csrf?.token}"/>
+                            <button type="submit" class="btn btn-delete btn-sm btn-desactivar-area"
+                                    th:data-nombre="${a.nombre}"
+                                    title="Desactivar área">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                     style="width:13px;height:13px">
+                                    <polyline points="3 6 5 6 21 6"/>
+                                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                                </svg>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="area-empty" th:if="${#lists.isEmpty(todasAreas)}">
+                No hay áreas registradas aún.
+            </div>
+
+            <!-- Sub-form editar área (oculto) -->
+            <div class="area-form-inline" id="panelEditarArea" style="display:none;">
+                <div class="form-section-label">Editar área</div>
+                <form id="formEditarArea" method="post" novalidate>
+                    <input type="hidden" th:name="${_csrf?.parameterName}" th:value="${_csrf?.token}"/>
+                    <div class="form-grid-2">
+                        <div class="form-group full">
+                            <label class="form-label" for="ea_nombre">
+                                Nombre del área <span style="color:#b91c1c">*</span>
+                            </label>
+                            <input type="text" id="ea_nombre" name="nombre"
+                                   class="form-control"
+                                   placeholder="ej. PRIMER PISO"
+                                   maxlength="100">
+                        </div>
+                        <div class="form-group full">
+                            <label class="form-label" for="ea_desc">Descripción</label>
+                            <input type="text" id="ea_desc" name="descripcion"
+                                   class="form-control"
+                                   placeholder="ej. Mesas del salón principal"
+                                   maxlength="255">
+                        </div>
+                        <div class="form-group">
+                            <div class="switch-row">
+                                <label class="switch">
+                                    <input type="checkbox" name="activo" value="true" id="ea_activo">
+                                    <span class="switch-slider"></span>
+                                </label>
+                                <span class="switch-label">Área activa</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:.5rem; justify-content:flex-end; margin-top:.5rem;">
+                        <button type="button" class="btn btn-secondary btn-sm"
+                                onclick="document.getElementById('panelEditarArea').style.display='none'">
+                            Cancelar
+                        </button>
+                        <button type="submit" class="btn btn-edit btn-sm">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                 style="width:13px;height:13px">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                            Guardar cambios
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Crear nueva área -->
+            <div class="form-section-label" style="margin-top:1.25rem;">Agregar nueva área</div>
+            <form th:action="@{/mesas/areas/crear}" method="post"
+                  id="formCrearArea" novalidate>
+                <input type="hidden" th:name="${_csrf?.parameterName}" th:value="${_csrf?.token}"/>
+                <div class="form-grid-2">
+                    <div class="form-group full">
+                        <label class="form-label" for="na_nombre">
+                            Nombre del área <span style="color:#b91c1c">*</span>
+                        </label>
+                        <input type="text" id="na_nombre" name="nombre"
+                               class="form-control"
+                               placeholder="ej. SEGUNDO PISO"
+                               maxlength="100"
+                               style="text-transform:uppercase;">
+                    </div>
+                    <div class="form-group full">
+                        <label class="form-label" for="na_desc">Descripción</label>
+                        <input type="text" id="na_desc" name="descripcion"
+                               class="form-control"
+                               placeholder="ej. Mesas del segundo nivel"
+                               maxlength="255">
+                    </div>
+                    <div class="form-group">
+                        <div class="switch-row">
+                            <label class="switch">
+                                <input type="checkbox" name="activo" value="true"
+                                       checked id="na_activo">
+                                <span class="switch-slider"></span>
+                            </label>
+                            <span class="switch-label">Activa</span>
+                        </div>
+                    </div>
+                </div>
+                <div style="display:flex; justify-content:flex-end; margin-top:.25rem;">
+                    <button type="submit" class="btn btn-create btn-sm">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                             style="width:13px;height:13px">
+                            <line x1="12" y1="5" x2="12" y2="19"/>
+                            <line x1="5" y1="12" x2="19" y2="12"/>
+                        </svg>
+                        Crear área
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="cerrarModal('modalAreas')">
+                Cerrar
+            </button>
+        </div>
+    </div>
+</div>
+
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+    // ── Utilidades modal ──────────────────────────────────────────────────────
+    function abrirModal(id)  { document.getElementById(id).classList.add('open'); }
+    function cerrarModal(id) {
+        const modal = document.getElementById(id);
+        modal.classList.remove('open');
+        if (['modalCrear','modalEditar','modalAreas'].includes(id)) {
+            limpiarFormularios();
+        }
+    }
+    window.cerrarModal = cerrarModal;
+
+    // ── Abrir modales principales ─────────────────────────────────────────────
+    document.getElementById('btnNuevaMesa').addEventListener('click', () => abrirModal('modalCrear'));
+    document.getElementById('btnGestionarAreas').addEventListener('click', () => abrirModal('modalAreas'));
+
+    // ── Botones editar mesa ───────────────────────────────────────────────────
+    document.querySelectorAll('.btn-editar-mesa').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const d = this.dataset;
+
+            const inputNumero = document.getElementById('e_numero');
+            const selectArea  = document.getElementById('e_areaId');
+            const selectEst   = document.getElementById('e_estado');
+            const checkAct    = document.getElementById('e_activo');
+
+            if (inputNumero) inputNumero.value    = d.numero  || '';
+            if (selectArea)  selectArea.value     = d.areaid  || '';
+            if (selectEst)   selectEst.value      = d.estado  || 'LIBRE';
+            if (checkAct)    checkAct.checked      = (d.activo === 'true');
+
+            const formEditar = document.getElementById('formEditar');
+            if (formEditar) formEditar.action = '/mesas/' + d.id + '/editar';
+
+            abrirModal('modalEditar');
+        });
+    });
+
+    // ── Botones eliminar mesa ─────────────────────────────────────────────────
+    document.querySelectorAll('.btn-eliminar-mesa').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const txtNumero   = document.getElementById('eliminarNumeroMesa');
+            const formElim    = document.getElementById('formEliminarMesa');
+
+            if (txtNumero)  txtNumero.textContent = 'Mesa ' + this.dataset.numero;
+            if (formElim)   formElim.action = '/mesas/' + this.dataset.id + '/eliminar';
+            abrirModal('modalEliminar');
+        });
+    });
+
+    // ── Botones editar área ───────────────────────────────────────────────────
+    document.querySelectorAll('.btn-editar-area').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const d = this.dataset;
+            document.getElementById('ea_nombre').value   = d.nombre || '';
+            document.getElementById('ea_desc').value     = d.desc   || '';
+            document.getElementById('ea_activo').checked = (d.activo === 'true');
+
+            document.getElementById('formEditarArea').action =
+                '/mesas/areas/' + d.id + '/editar';
+
+            const panel = document.getElementById('panelEditarArea');
+            if (panel) {
+                panel.style.display = 'block';
+                panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        });
+    });
+
+    // ── Desactivar área (confirmación) ────────────────────────────────────────
+    document.querySelectorAll('.btn-desactivar-area').forEach(btn => {
+        btn.addEventListener('click', function (e) {
+            const nombre = this.dataset.nombre || 'esta área';
+            if (!confirm('¿Desactivar el área «' + nombre + '»?\nLas mesas de esta área no se verán afectadas.')) {
+                e.preventDefault();
+            }
+        });
+    });
+
+    // ── Cerrar al hacer clic en overlay ──────────────────────────────────────
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+        overlay.addEventListener('click', e => {
+            if (e.target === overlay) {
+                const id = overlay.id;
+                overlay.classList.remove('open');
+                if (['modalCrear','modalEditar','modalAreas'].includes(id)) {
+                    limpiarFormularios();
+                }
+            }
+        });
+    });
+
+    // ── Cerrar con Escape ─────────────────────────────────────────────────────
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.modal-overlay.open').forEach(m => {
+                const id = m.id;
+                m.classList.remove('open');
+                if (['modalCrear','modalEditar','modalAreas'].includes(id)) {
+                    limpiarFormularios();
+                }
+            });
+        }
+    });
+
+    // ── Flash auto-ocultar ────────────────────────────────────────────────────
+    const flash = document.querySelector('.alert-flash');
+    if (flash) {
+        setTimeout(() => {
+            flash.style.transition = 'opacity .4s';
+            flash.style.opacity    = '0';
+            setTimeout(() => flash.remove(), 400);
+        }, 4000);
+    }
+
+    // ── Nombre área en MAYÚSCULAS ─────────────────────────────────────────────
+    ['na_nombre', 'ea_nombre'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', () => {
+            const pos = el.selectionStart;
+            el.value = el.value.toUpperCase();
+            el.setSelectionRange(pos, pos);
+        });
+    });
+
+    // ── Validación CREAR MESA ─────────────────────────────────────────────────
+    const formCrear = document.getElementById('formCrear');
+    if (formCrear) {
+        formCrear.addEventListener('submit', function (e) {
+            const numero = document.getElementById('c_numero');
+            const area   = document.getElementById('c_areaId');
+            let ok = true;
+
+            [numero, area].forEach(f => { if (f) f.classList.remove('is-invalid'); });
+
+            if (!numero.value || Number(numero.value) < 1) {
+                numero.classList.add('is-invalid'); ok = false;
+            }
+            if (!area.value) {
+                area.classList.add('is-invalid'); ok = false;
+            }
+            if (!ok) e.preventDefault();
+        });
+    }
+
+    // ── Validación EDITAR MESA ────────────────────────────────────────────────
+    const formEditar = document.getElementById('formEditar');
+    if (formEditar) {
+        formEditar.addEventListener('submit', function (e) {
+            const area = document.getElementById('e_areaId');
+            if (area) area.classList.remove('is-invalid');
+            if (!area.value) {
+                area.classList.add('is-invalid');
+                e.preventDefault();
+            }
+        });
+    }
+
+    // ── Validación CREAR ÁREA ─────────────────────────────────────────────────
+    const formCrearArea = document.getElementById('formCrearArea');
+    if (formCrearArea) {
+        formCrearArea.addEventListener('submit', function (e) {
+            const nombre = document.getElementById('na_nombre');
+            if (nombre) {
+                nombre.classList.remove('is-invalid');
+                if (nombre.value.trim().length < 2) {
+                    nombre.classList.add('is-invalid');
+                    e.preventDefault();
+                }
+            }
+        });
+    }
+
+    // ── Validación EDITAR ÁREA ────────────────────────────────────────────────
+    const formEditarArea = document.getElementById('formEditarArea');
+    if (formEditarArea) {
+        formEditarArea.addEventListener('submit', function (e) {
+            const nombre = document.getElementById('ea_nombre');
+            if (nombre) {
+                nombre.classList.remove('is-invalid');
+                if (nombre.value.trim().length < 2) {
+                    nombre.classList.add('is-invalid');
+                    e.preventDefault();
+                }
+            }
+        });
+    }
+
+    // ── Limpiar formularios ───────────────────────────────────────────────────
+    function limpiarFormularios() {
+        // Crear mesa
+        const fCrear = document.getElementById('formCrear');
+        if (fCrear) {
+            fCrear.reset();
+            const chkActivo = document.getElementById('c_activo');
+            if (chkActivo) chkActivo.checked = true;
+            fCrear.querySelectorAll('.is-invalid')
+                  .forEach(i => i.classList.remove('is-invalid'));
+        }
+
+        // Editar mesa
+        const fEditar = document.getElementById('formEditar');
+        if (fEditar) {
+            fEditar.reset();
+            fEditar.querySelectorAll('.is-invalid')
+                   .forEach(i => i.classList.remove('is-invalid'));
+        }
+
+        // Panel editar área
+        const panelArea = document.getElementById('panelEditarArea');
+        if (panelArea) {
+            panelArea.style.display = 'none';
+            const fEditArea = document.getElementById('formEditarArea');
+            if (fEditArea) fEditArea.reset();
+        }
+
+        // Crear área
+        const fCrearArea = document.getElementById('formCrearArea');
+        if (fCrearArea) {
+            fCrearArea.reset();
+            const chkActivoArea = document.getElementById('na_activo');
+            if (chkActivoArea) chkActivoArea.checked = true;
+            fCrearArea.querySelectorAll('.is-invalid')
+                      .forEach(i => i.classList.remove('is-invalid'));
+        }
+    }
+});
+</script>
+
+</main>
+</body>
+</html>

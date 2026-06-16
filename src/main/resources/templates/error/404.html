@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="es"
+      xmlns:th="http://www.thymeleaf.org"
+      <html th:replace="~{layout :: layout('Error 500 — Servidor', ~{::section})}">
+<body>
+<section>
+    <div style="max-width:480px; margin:4rem auto; text-align:center;">
+        <div style="font-size:4rem; margin-bottom:1rem;">🔍</div>
+        <h1 style="font-size:1.4rem; font-weight:700; color:var(--text-main); margin-bottom:.5rem;">
+            Página no encontrada
+        </h1>
+        <p style="color:var(--text-sub); margin-bottom:1.5rem;"
+           th:text="${message} ?: 'El recurso solicitado no existe o fue movido.'">
+            El recurso solicitado no existe.
+        </p>
+        <a th:href="@{/dashboard}" class="btn btn-create">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            </svg>
+            Volver al inicio
+        </a>
+    </div>
+</section>
+</body>
+</html>

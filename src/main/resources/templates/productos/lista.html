@@ -1,0 +1,1423 @@
+<!DOCTYPE html>
+<html lang="es"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      th:replace="~{layout :: layout('Productos', ~{::main})}">
+<body>
+<main>
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     ESTILOS LOCALES
+══════════════════════════════════════════════════════════════════════ -->
+<style>
+    /* ── Stats bar ───────────────────────────────────────────────── */
+    .stats-bar {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: .75rem;
+        margin-bottom: 1.25rem;
+    }
+    .stat-chip {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: .9rem 1.1rem;
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+        box-shadow: var(--shadow);
+    }
+    .stat-icon {
+        width: 40px; height: 40px;
+        border-radius: 10px;
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+    }
+    .stat-icon svg { width: 19px; height: 19px; }
+    .stat-icon.blue   { background: #dbeafe; color: #1d4ed8; }
+    .stat-icon.green  { background: #dcfce7; color: #15803d; }
+    .stat-icon.red    { background: #fee2e2; color: #b91c1c; }
+    .stat-icon.indigo { background: #e0e7ff; color: #4338ca; }
+    .stat-value { font-size: 1.4rem; font-weight: 700; line-height: 1; color: var(--text-main); }
+    .stat-label { font-size: .72rem; color: var(--text-sub); margin-top: 3px; }
+
+    /* ── Filtros toolbar ─────────────────────────────────────────── */
+    .toolbar {
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+        flex-wrap: wrap;
+    }
+    .search-wrap {
+        position: relative;
+        flex: 1;
+        min-width: 200px;
+        max-width: 320px;
+    }
+    .search-wrap svg {
+        position: absolute; left: .7rem; top: 50%;
+        transform: translateY(-50%);
+        width: 15px; height: 15px;
+        color: var(--text-sub);
+        pointer-events: none;
+    }
+    .search-wrap input {
+        width: 100%;
+        padding: .5rem .8rem .5rem 2.2rem;
+        font-size: .86rem;
+        font-family: inherit;
+        border: 1.5px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface);
+        color: var(--text-main);
+        outline: none;
+        transition: border-color .2s, box-shadow .2s;
+    }
+    .search-wrap input:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(29,53,87,.07);
+    }
+    .filter-select {
+        padding: .48rem .8rem;
+        font-size: .84rem;
+        font-family: inherit;
+        border: 1.5px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface);
+        color: var(--text-main);
+        cursor: pointer;
+        outline: none;
+        min-width: 160px;
+        transition: border-color .2s;
+    }
+    .filter-select:focus { border-color: var(--primary); }
+
+    /* ── Botón Categorías ────────────────────────────────────────── */
+    .btn-cat {
+        background: #4f46e5;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        padding: .48rem .9rem;
+        font-size: .82rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        transition: background .15s;
+        font-family: inherit;
+        white-space: nowrap;
+    }
+    .btn-cat:hover { background: #4338ca; }
+    .btn-cat svg { width: 15px; height: 15px; }
+
+    /* ── Tabla: celda producto ───────────────────────────────────── */
+    .prod-cell {
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+    }
+    .prod-icon {
+        width: 40px; height: 40px;
+        border-radius: 10px;
+        background: #f1f5f9;
+        border: 1px solid var(--border);
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+        color: #475569;
+    }
+    .prod-icon svg { width: 20px; height: 20px; }
+    .prod-nombre { font-weight: 600; font-size: .87rem; color: var(--text-main); line-height: 1.2; }
+    .prod-codigo { font-size: .73rem; color: var(--text-sub); margin-top: 1px; font-family: 'Courier New', monospace; }
+
+    .cat-pill {
+        display: inline-flex; align-items: center; gap: .25rem;
+        padding: .2rem .6rem;
+        border-radius: 20px;
+        font-size: .72rem; font-weight: 700;
+        background: #e0e7ff; color: #3730a3;
+        text-transform: uppercase; letter-spacing: .04em;
+        white-space: nowrap;
+    }
+
+    .precio-cell {
+        font-weight: 700;
+        font-size: .95rem;
+        color: var(--text-main);
+        font-variant-numeric: tabular-nums;
+    }
+    .precio-sym {
+        font-size: .75rem;
+        font-weight: 500;
+        color: var(--text-sub);
+        margin-right: 1px;
+    }
+
+    .actions-cell { display: flex; gap: .4rem; align-items: center; justify-content: center; }
+
+    /* ── Empty state ─────────────────────────────────────────────── */
+    .empty-state {
+        text-align: center;
+        padding: 3.5rem 1rem;
+        color: var(--text-sub);
+    }
+    .empty-state svg { width: 52px; height: 52px; opacity: .25; margin-bottom: .85rem; }
+    .empty-state p { font-size: .9rem; }
+
+    /* ── Paginación info ─────────────────────────────────────────── */
+    .pag-info {
+        font-size: .78rem; color: var(--text-sub);
+        text-align: center; padding-top: .3rem;
+    }
+
+    /* ══════════════════════════════════════════════════════════════
+       MODALES — GRID Y SECCIONES
+    ══════════════════════════════════════════════════════════════ */
+    .form-grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0 1rem;
+    }
+    .form-grid-2 .full { grid-column: 1 / -1; }
+
+    .form-section-label {
+        font-size: .68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .09em;
+        color: var(--text-sub);
+        margin: 1rem 0 .6rem;
+        padding-bottom: .35rem;
+        border-bottom: 1px solid var(--border);
+    }
+    .form-section-label:first-child { margin-top: 0; }
+
+    /* Switch activo/disponible */
+    .switch-row { display: flex; align-items: center; gap: .6rem; padding: .4rem 0; }
+    .switch { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .switch-slider {
+        position: absolute; inset: 0;
+        background: #cbd5e1; border-radius: 22px;
+        cursor: pointer; transition: background .2s;
+    }
+    .switch-slider::before {
+        content: '';
+        position: absolute;
+        width: 16px; height: 16px;
+        left: 3px; top: 3px;
+        background: #fff; border-radius: 50%;
+        transition: transform .2s;
+    }
+    .switch input:checked + .switch-slider { background: #344e41; }
+    .switch input:checked + .switch-slider::before { transform: translateX(18px); }
+    .switch-label { font-size: .86rem; font-weight: 500; color: var(--text-main); }
+
+    /* Precio con prefijo */
+    .input-prefix-wrap { position: relative; }
+    .input-prefix-wrap .prefix {
+        position: absolute; left: .8rem; top: 50%;
+        transform: translateY(-50%);
+        font-size: .84rem; font-weight: 600;
+        color: var(--text-sub);
+        pointer-events: none;
+    }
+    .input-prefix-wrap input { padding-left: 2rem; }
+
+    /* Confirm modal */
+    .confirm-modal { max-width: 400px; }
+    .confirm-icon {
+        width: 52px; height: 52px;
+        border-radius: 50%;
+        background: #fee2e2;
+        display: flex; align-items: center; justify-content: center;
+        margin: 0 auto 1rem;
+    }
+    .confirm-icon svg { width: 24px; height: 24px; color: #991b1b; }
+    .confirm-body { text-align: center; padding: 1.5rem 1.25rem 1rem; }
+    .confirm-body h3 { font-size: .95rem; font-weight: 700; margin-bottom: .4rem; }
+    .confirm-body p  { font-size: .84rem; color: var(--text-sub); }
+
+    /* ══════════════════════════════════════════════════════════════
+       MODAL CATEGORÍAS (ancho mayor)
+    ══════════════════════════════════════════════════════════════ */
+    .modal-cat { max-width: 620px; }
+
+    .cat-list {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow: hidden;
+        margin-bottom: 1rem;
+    }
+    .cat-list-item {
+        display: flex; align-items: center;
+        justify-content: space-between;
+        padding: .65rem 1rem;
+        border-bottom: 1px solid var(--border);
+        gap: .5rem;
+    }
+    .cat-list-item:last-child { border-bottom: none; }
+    .cat-list-item:hover { background: #f8fafc; }
+
+    .cat-info { flex: 1; min-width: 0; }
+    .cat-nombre {
+        font-weight: 600; font-size: .86rem;
+        color: var(--text-main);
+        letter-spacing: .02em;
+    }
+    .cat-desc {
+        font-size: .74rem; color: var(--text-sub);
+        margin-top: 1px;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .cat-order {
+        font-size: .7rem;
+        background: #f1f5f9;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: .1rem .4rem;
+        color: var(--text-sub);
+        font-weight: 600;
+        margin-left: .4rem;
+        flex-shrink: 0;
+    }
+    .cat-actions { display: flex; gap: .35rem; flex-shrink: 0; }
+
+    .badge-cat-activo   { background: #dcfce7; color: #15803d; }
+    .badge-cat-inactivo { background: #f1f5f9; color: #64748b; }
+    .badge-cat-tag {
+        display: inline-block;
+        padding: .15rem .45rem;
+        border-radius: 20px;
+        font-size: .67rem; font-weight: 700;
+        margin-right: .3rem;
+    }
+
+    .cat-empty {
+        text-align: center; padding: 1.5rem;
+        color: var(--text-sub); font-size: .85rem;
+    }
+
+    /* Sub-form editar categoría */
+    .cat-form-inline {
+        background: #f8fafc;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-top: .5rem;
+    }
+
+    /* Input orden (número pequeño) */
+    input[type="number"].input-order {
+        width: 80px;
+    }
+
+    /* Descripción textarea mini */
+    textarea.form-control-sm {
+        min-height: 60px;
+        resize: vertical;
+    }
+</style>
+
+<!-- ══ FLASH MESSAGES ══════════════════════════════════════════════════════ -->
+<div th:if="${flashMensaje != null}"
+     th:classappend="${flashTipo == 'success' ? 'success' : 'error'}"
+     class="alert-flash">
+    <svg th:if="${flashTipo == 'success'}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" style="width:16px;height:16px;flex-shrink:0">
+        <polyline points="20 6 9 17 4 12"/>
+    </svg>
+    <svg th:unless="${flashTipo == 'success'}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" style="width:16px;height:16px;flex-shrink:0">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    <span th:text="${flashMensaje}"></span>
+</div>
+
+<!-- ══ STATS BAR ═══════════════════════════════════════════════════════════ -->
+<div class="stats-bar">
+    <div class="stat-chip">
+        <div class="stat-icon blue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275Z"/>
+            </svg>
+        </div>
+        <div>
+            <div class="stat-value" th:text="${totalProductos}">0</div>
+            <div class="stat-label">Total productos</div>
+        </div>
+    </div>
+    <div class="stat-chip">
+        <div class="stat-icon green">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 12l2 2 4-4"/><rect x="3" y="3" width="18" height="18" rx="2"/>
+            </svg>
+        </div>
+        <div>
+            <div class="stat-value" th:text="${disponibles}">0</div>
+            <div class="stat-label">Disponibles</div>
+        </div>
+    </div>
+    <div class="stat-chip">
+        <div class="stat-icon red">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+            </svg>
+        </div>
+        <div>
+            <div class="stat-value" th:text="${noDisponibles}">0</div>
+            <div class="stat-label">No disponibles</div>
+        </div>
+    </div>
+    <div class="stat-chip">
+        <div class="stat-icon indigo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+            </svg>
+        </div>
+        <div>
+            <div class="stat-value" th:text="${#lists.size(categorias)}">0</div>
+            <div class="stat-label">Categorías</div>
+        </div>
+    </div>
+</div>
+
+<!-- ══ CARD PRINCIPAL ══════════════════════════════════════════════════════ -->
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 style="width:16px;height:16px;vertical-align:middle;margin-right:.35rem">
+                <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275Z"/>
+            </svg>
+            Gestión de Productos
+        </span>
+
+        <!-- TOOLBAR -->
+        <div class="toolbar" style="flex:1; justify-content:flex-end;">
+            <form method="get" action="/productos" style="display:contents;">
+                <!-- Buscador -->
+                <div class="search-wrap">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    <input type="text" name="busqueda"
+                           th:value="${busqueda}"
+                           placeholder="Nombre, código o categoría…"
+                           autocomplete="off">
+                </div>
+                <!-- Filtro categoría -->
+                <select name="categoriaId" class="filter-select"
+                        onchange="this.form.submit()">
+                    <option value="">Todas las categorías</option>
+                    <option th:each="c : ${categorias}"
+                            th:value="${c.id}"
+                            th:text="${c.nombre}"
+                            th:selected="${c.id == categoriaId}">CAT</option>
+                </select>
+                <button type="submit" class="btn btn-secondary btn-sm">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         style="width:14px;height:14px">
+                        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    Buscar
+                </button>
+            </form>
+
+            <!-- Botón Categorías -->
+            <button class="btn-cat" id="btnGestionarCategorias">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+                </svg>
+                Categorías
+            </button>
+
+            <!-- Botón nuevo producto -->
+            <button class="btn btn-create" id="btnNuevoProducto">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:15px;height:15px">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Nuevo producto
+            </button>
+        </div>
+    </div>
+
+    <!-- TABLA -->
+    <div class="table-responsive">
+        <table>
+            <thead>
+                <tr>
+                    <th style="width:36px">#</th>
+                    <th>Producto</th>
+                    <th>Categoría</th>
+                    <th>Precio</th>
+                    <th>Disponible</th>
+                    <th style="width:150px; text-align:center;">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Sin resultados -->
+                <tr th:if="${#lists.isEmpty(productos)}">
+                    <td colspan="6">
+                        <div class="empty-state">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275Z"/>
+                            </svg>
+                            <p>No se encontraron productos</p>
+                        </div>
+                    </td>
+                </tr>
+
+                <!-- Filas -->
+                <tr th:each="p, stat : ${productos}">
+                    <td style="color:var(--text-sub); font-size:.78rem;"
+                        th:text="${page.number * page.size + stat.index + 1}">1</td>
+
+                    <!-- Producto nombre + código -->
+                    <td>
+                        <div class="prod-cell">
+                            <div class="prod-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                    <path d="M3 2.69a1 1 0 0 1 .917-.97l12-1a1 1 0 0 1 1.083.97v1.37l.9.2A2 2 0 0 1 19.5 5.1v13.4a2 2 0 0 1-1.6 1.96l-10 1.84A2 2 0 0 1 5.5 20.5V4.31L3.083 4A1 1 0 0 1 3 2.69Z"/>
+                                    <path d="M9 12h6M9 8h6M9 16h4"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <div class="prod-nombre" th:text="${p.nombre}">Nombre</div>
+                                <div class="prod-codigo"
+                                     th:text="${p.codigo != null ? '#' + p.codigo : '—'}">—</div>
+                            </div>
+                        </div>
+                    </td>
+
+                    <!-- Categoría -->
+                    <td>
+                        <span class="cat-pill" th:text="${p.categoria?.nombre ?: '—'}">CAT</span>
+                    </td>
+
+                    <!-- Precio -->
+                    <td>
+                        <span class="precio-cell">
+                            <span class="precio-sym">S/</span>
+                            <span th:text="${#numbers.formatDecimal(p.precio, 1, 2)}">0.00</span>
+                        </span>
+                    </td>
+
+                    <!-- Disponible -->
+                    <td>
+                        <span class="badge"
+                              th:classappend="${p.disponible ? 'badge-active' : 'badge-inactive'}"
+                              th:text="${p.disponible ? 'Disponible' : 'No disponible'}">—</span>
+                    </td>
+
+                    <!-- Acciones -->
+                    <td>
+                        <div class="actions-cell">
+                            <!-- Editar -->
+                            <button class="btn btn-edit btn-sm btn-editar-prod"
+                                    th:data-id="${p.id}"
+                                    th:data-nombre="${p.nombre}"
+                                    th:data-codigo="${p.codigo != null ? p.codigo : ''}"
+                                    th:data-descripcion="${p.descripcion != null ? p.descripcion : ''}"
+                                    th:data-precio="${p.precio}"
+                                    th:data-categoriaid="${p.categoria != null ? p.categoria.id : ''}"
+                                    th:data-disponible="${p.disponible}"
+                                    th:data-activo="${p.activo}"
+                                    title="Editar producto">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                     style="width:14px;height:14px">
+                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                </svg>
+                                Editar
+                            </button>
+
+                            <!-- Eliminar -->
+                            <button class="btn btn-delete btn-sm btn-eliminar-prod"
+                                    th:data-id="${p.id}"
+                                    th:data-nombre="${p.nombre}"
+                                    title="Desactivar producto">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                     style="width:14px;height:14px">
+                                    <polyline points="3 6 5 6 21 6"/>
+                                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                                    <path d="M10 11v6"/><path d="M14 11v6"/>
+                                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- PAGINACIÓN -->
+    <div th:if="${page.totalPages > 1}"
+         style="padding:.75rem 1.25rem; border-top:1px solid var(--border);">
+        <div class="pagination">
+            <a th:href="@{/productos(pagina=${page.number - 1}, busqueda=${busqueda}, categoriaId=${categoriaId})}"
+               th:classappend="${page.first ? 'disabled' : ''}"
+               class="page-link">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:13px;height:13px"><polyline points="15 18 9 12 15 6"/></svg>
+            </a>
+            <th:block th:each="i : ${#numbers.sequence(0, page.totalPages - 1)}">
+                <a th:href="@{/productos(pagina=${i}, busqueda=${busqueda}, categoriaId=${categoriaId})}"
+                   th:text="${i + 1}"
+                   th:classappend="${i == page.number ? 'active' : ''}"
+                   class="page-link">1</a>
+            </th:block>
+            <a th:href="@{/productos(pagina=${page.number + 1}, busqueda=${busqueda}, categoriaId=${categoriaId})}"
+               th:classappend="${page.last ? 'disabled' : ''}"
+               class="page-link">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:13px;height:13px"><polyline points="9 18 15 12 9 6"/></svg>
+            </a>
+        </div>
+        <p class="pag-info">
+            Mostrando
+            <strong th:text="${page.number * page.size + 1}">1</strong>–<strong
+               th:text="${page.number * page.size + #lists.size(productos)}">10</strong>
+            de <strong th:text="${page.totalElements}">0</strong> productos
+        </p>
+    </div>
+</div><!-- /card -->
+
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     MODAL: CREAR PRODUCTO
+══════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalCrear">
+    <div class="modal">
+        <div class="modal-header">
+            <span class="modal-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:16px;height:16px;vertical-align:middle;margin-right:.35rem">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Nuevo producto
+            </span>
+            <button class="modal-close" onclick="cerrarModal('modalCrear')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:18px;height:18px">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+
+        <form th:action="@{/productos/crear}" method="post" id="formCrear" novalidate>
+            <input type="hidden" th:name="${_csrf?.parameterName}" th:value="${_csrf?.token}"/>
+            <div class="modal-body">
+
+                <!-- Identificación -->
+                <div class="form-section-label">Identificación</div>
+                <div class="form-grid-2">
+                    <div class="form-group full">
+                        <label class="form-label" for="c_nombre">
+                            Nombre del producto <span style="color:#b91c1c">*</span>
+                        </label>
+                        <input type="text" id="c_nombre" name="nombre"
+                               class="form-control"
+                               placeholder="ej. Arroz con Leche"
+                               maxlength="150" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="c_codigo">Código interno</label>
+                        <input type="text" id="c_codigo" name="codigo"
+                               class="form-control"
+                               placeholder="ej. POS-001"
+                               maxlength="30" autocomplete="off"
+                               style="text-transform:uppercase;">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="c_categoriaId">
+                            Categoría <span style="color:#b91c1c">*</span>
+                        </label>
+                        <select id="c_categoriaId" name="categoriaId" class="form-select">
+                            <option value="">— Seleccionar —</option>
+                            <option th:each="cat : ${categorias}"
+                                    th:value="${cat.id}"
+                                    th:text="${cat.nombre}">Cat</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Precio -->
+                <div class="form-section-label">Precio</div>
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label class="form-label" for="c_precio">
+                            Precio (S/) <span style="color:#b91c1c">*</span>
+                        </label>
+                        <div class="input-prefix-wrap">
+                            <span class="prefix">S/</span>
+                            <input type="number" id="c_precio" name="precio"
+                                   class="form-control"
+                                   placeholder="0.00"
+                                   min="0" step="0.01">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Descripción -->
+                <div class="form-section-label">Descripción</div>
+                <div class="form-group">
+                    <textarea id="c_descripcion" name="descripcion"
+                              class="form-control textarea-prod"
+                              placeholder="Descripción opcional del producto…"
+                              maxlength="1000" rows="3"></textarea>
+                </div>
+
+                <!-- Estado -->
+                <div class="form-section-label">Estado</div>
+                <div style="display:flex; gap:2rem; flex-wrap:wrap;">
+                    <div class="switch-row">
+                        <label class="switch">
+                            <input type="checkbox" name="disponible" value="true" checked id="c_disponible">
+                            <span class="switch-slider"></span>
+                        </label>
+                        <span class="switch-label">Disponible en carta</span>
+                    </div>
+                    <div class="switch-row">
+                        <label class="switch">
+                            <input type="checkbox" name="activo" value="true" checked id="c_activo">
+                            <span class="switch-slider"></span>
+                        </label>
+                        <span class="switch-label">Producto activo</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="cerrarModal('modalCrear')">
+                    Cancelar
+                </button>
+                <button type="submit" class="btn btn-create">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         style="width:15px;height:15px">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    Guardar producto
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     MODAL: EDITAR PRODUCTO
+══════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalEditar">
+    <div class="modal">
+        <div class="modal-header">
+            <span class="modal-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:16px;height:16px;vertical-align:middle;margin-right:.35rem">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+                Editar producto
+            </span>
+            <button class="modal-close" onclick="cerrarModal('modalEditar')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:18px;height:18px">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+
+        <form id="formEditar" method="post" novalidate>
+            <input type="hidden" th:name="${_csrf?.parameterName}" th:value="${_csrf?.token}"/>
+            <div class="modal-body">
+
+                <div class="form-section-label">Identificación</div>
+                <div class="form-grid-2">
+                    <div class="form-group full">
+                        <label class="form-label" for="e_nombre">
+                            Nombre del producto <span style="color:#b91c1c">*</span>
+                        </label>
+                        <input type="text" id="e_nombre" name="nombre"
+                               class="form-control"
+                               placeholder="ej. Arroz con Leche"
+                               maxlength="150" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="e_codigo">Código interno</label>
+                        <input type="text" id="e_codigo" name="codigo"
+                               class="form-control"
+                               placeholder="ej. POS-001"
+                               maxlength="30" autocomplete="off"
+                               style="text-transform:uppercase;">
+                        <div id="error_codigo" class="invalid-feedback" style="display:none;">
+                                Este código ya se encuentra registrado.
+                        </div>            
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="e_categoriaId">
+                            Categoría <span style="color:#b91c1c">*</span>
+                        </label>
+                        <select id="e_categoriaId" name="categoriaId" class="form-select">
+                            <option value="">— Seleccionar —</option>
+                            <option th:each="cat : ${categorias}"
+                                    th:value="${cat.id}"
+                                    th:text="${cat.nombre}">Cat</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-section-label">Precio</div>
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label class="form-label" for="e_precio">
+                            Precio (S/) <span style="color:#b91c1c">*</span>
+                        </label>
+                        <div class="input-prefix-wrap">
+                            <span class="prefix">S/</span>
+                            <input type="number" id="e_precio" name="precio"
+                                   class="form-control"
+                                   placeholder="0.00"
+                                   min="0" step="0.01">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section-label">Descripción</div>
+                <div class="form-group">
+                    <textarea id="e_descripcion" name="descripcion"
+                              class="form-control"
+                              placeholder="Descripción opcional del producto…"
+                              maxlength="1000" rows="3"></textarea>
+                </div>
+
+                <div class="form-section-label">Estado</div>
+                <div style="display:flex; gap:2rem; flex-wrap:wrap;">
+                    <div class="switch-row">
+                        <label class="switch">
+                            <input type="checkbox" name="disponible" value="true" id="e_disponible">
+                            <span class="switch-slider"></span>
+                        </label>
+                        <span class="switch-label">Disponible en carta</span>
+                    </div>
+                    <div class="switch-row">
+                        <label class="switch">
+                            <input type="checkbox" name="activo" value="true" id="e_activo">
+                            <span class="switch-slider"></span>
+                        </label>
+                        <span class="switch-label">Producto activo</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="cerrarModal('modalEditar')">
+                    Cancelar
+                </button>
+                <button type="submit" class="btn btn-edit">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         style="width:15px;height:15px">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    Guardar cambios
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     MODAL: CONFIRMAR ELIMINAR
+══════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalEliminar">
+    <div class="modal confirm-modal">
+        <div class="modal-header">
+            <span class="modal-title">Confirmar desactivación</span>
+            <button class="modal-close" onclick="cerrarModal('modalEliminar')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:18px;height:18px">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+        <div class="confirm-body">
+            <div class="confirm-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                    <path d="M10 11v6"/><path d="M14 11v6"/>
+                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                </svg>
+            </div>
+            <h3>¿Desactivar este producto?</h3>
+            <p>El producto <strong id="eliminarNombreProd"></strong> quedará inactivo
+               y no aparecerá en el sistema. Esta acción puede revertirse editando el producto.</p>
+        </div>
+        <form id="formEliminarProd" method="post">
+            <input type="hidden" th:name="${_csrf?.parameterName}" th:value="${_csrf?.token}"/>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="cerrarModal('modalEliminar')">
+                    Cancelar
+                </button>
+                <button type="submit" class="btn btn-delete">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         style="width:15px;height:15px">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                    </svg>
+                    Sí, desactivar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     MODAL: GESTIÓN DE CATEGORÍAS
+══════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalCategorias">
+    <div class="modal modal-cat">
+        <div class="modal-header">
+            <span class="modal-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:16px;height:16px;vertical-align:middle;margin-right:.35rem">
+                    <path d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+                </svg>
+                Gestión de Categorías
+            </span>
+            <button class="modal-close" onclick="cerrarModal('modalCategorias')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:18px;height:18px">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+
+        <div class="modal-body">
+
+            <!-- Lista categorías existentes -->
+            <div class="form-section-label">Categorías registradas</div>
+
+            <div class="cat-list" th:if="${not #lists.isEmpty(todasCategorias)}">
+                <div class="cat-list-item" th:each="c : ${todasCategorias}">
+                    <div class="cat-info">
+                        <div class="cat-nombre">
+                            <span class="badge-cat-tag"
+                                  th:classappend="${c.activo ? 'badge-cat-activo' : 'badge-cat-inactivo'}"
+                                  th:text="${c.activo ? 'Activo' : 'Inactivo'}">—</span>
+                            <span th:text="${c.nombre}">NOMBRE</span>
+                            <span class="cat-order" th:text="'Orden ' + ${c.ordenDisplay}">0</span>
+                        </div>
+                        <div class="cat-desc"
+                             th:text="${c.descripcion != null ? c.descripcion : 'Sin descripción'}">
+                            Sin descripción</div>
+                    </div>
+                    <div class="cat-actions">
+                        <!-- Editar categoría -->
+                        <button class="btn btn-edit btn-sm btn-editar-cat"
+                                th:data-id="${c.id}"
+                                th:data-nombre="${c.nombre}"
+                                th:data-desc="${c.descripcion != null ? c.descripcion : ''}"
+                                th:data-orden="${c.ordenDisplay}"
+                                th:data-activo="${c.activo}"
+                                title="Editar categoría">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                 style="width:13px;height:13px">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                            </svg>
+                        </button>
+                        <!-- Desactivar categoría -->
+                        <form th:if="${c.activo}"
+                              th:action="@{/productos/categorias/{id}/desactivar(id=${c.id})}"
+                              method="post" style="display:inline;"
+                              class="form-desactivar-cat">
+                            <input type="hidden" th:name="${_csrf?.parameterName}" th:value="${_csrf?.token}"/>
+                            <button type="submit" class="btn btn-delete btn-sm btn-desactivar-cat"
+                                    th:data-nombre="${c.nombre}"
+                                    title="Desactivar categoría">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                     style="width:13px;height:13px">
+                                    <polyline points="3 6 5 6 21 6"/>
+                                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                                </svg>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="cat-empty" th:if="${#lists.isEmpty(todasCategorias)}">
+                No hay categorías registradas aún.
+            </div>
+
+            <!-- Sub-form editar categoría (oculto) -->
+            <div class="cat-form-inline" id="panelEditarCat" style="display:none;">
+                <div class="form-section-label">Editar categoría</div>
+                <form id="formEditarCat" method="post" novalidate>
+                    <input type="hidden" th:name="${_csrf?.parameterName}" th:value="${_csrf?.token}"/>
+                    <div class="form-grid-2">
+                        <div class="form-group">
+                            <label class="form-label" for="ec_nombre">
+                                Nombre <span style="color:#b91c1c">*</span>
+                            </label>
+                            <input type="text" id="ec_nombre" name="nombre"
+                                   class="form-control"
+                                   placeholder="ej. BEBIDAS"
+                                   maxlength="100">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="ec_orden">Orden de display</label>
+                            <input type="number" id="ec_orden" name="ordenDisplay"
+                                   class="form-control input-order"
+                                   placeholder="0" min="0">
+                        </div>
+                        <div class="form-group full">
+                            <label class="form-label" for="ec_desc">Descripción</label>
+                            <input type="text" id="ec_desc" name="descripcion"
+                                   class="form-control"
+                                   placeholder="ej. Bebidas frías y calientes"
+                                   maxlength="255">
+                        </div>
+                        <div class="form-group">
+                            <div class="switch-row">
+                                <label class="switch">
+                                    <input type="checkbox" name="activo" value="true" id="ec_activo">
+                                    <span class="switch-slider"></span>
+                                </label>
+                                <span class="switch-label">Categoría activa</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:.5rem; justify-content:flex-end; margin-top:.5rem;">
+                        <button type="button" class="btn btn-secondary btn-sm"
+                                onclick="document.getElementById('panelEditarCat').style.display='none'">
+                            Cancelar
+                        </button>
+                        <button type="submit" class="btn btn-edit btn-sm">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                 style="width:13px;height:13px">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                            Guardar cambios
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Crear nueva categoría -->
+            <div class="form-section-label" style="margin-top:1.25rem;">Agregar nueva categoría</div>
+            <form th:action="@{/productos/categorias/crear}" method="post"
+                  id="formCrearCat" novalidate>
+                <input type="hidden" th:name="${_csrf?.parameterName}" th:value="${_csrf?.token}"/>
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label class="form-label" for="nc_nombre">
+                            Nombre <span style="color:#b91c1c">*</span>
+                        </label>
+                        <input type="text" id="nc_nombre" name="nombre"
+                               class="form-control"
+                               placeholder="ej. POSTRES"
+                               maxlength="100"
+                               style="text-transform:uppercase;">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="nc_orden">Orden de display</label>
+                        <input type="number" id="nc_orden" name="ordenDisplay"
+                               class="form-control input-order"
+                               value="0" min="0">
+                    </div>
+                    <div class="form-group full">
+                        <label class="form-label" for="nc_desc">Descripción</label>
+                        <input type="text" id="nc_desc" name="descripcion"
+                               class="form-control"
+                               placeholder="ej. Postres y dulces"
+                               maxlength="255">
+                    </div>
+                    <div class="form-group">
+                        <div class="switch-row">
+                            <label class="switch">
+                                <input type="checkbox" name="activo" value="true"
+                                       checked id="nc_activo">
+                                <span class="switch-slider"></span>
+                            </label>
+                            <span class="switch-label">Activo</span>
+                        </div>
+                    </div>
+                </div>
+                <div style="display:flex; justify-content:flex-end; margin-top:.25rem;">
+                    <button type="submit" class="btn btn-create btn-sm">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                             style="width:13px;height:13px">
+                            <line x1="12" y1="5" x2="12" y2="19"/>
+                            <line x1="5" y1="12" x2="19" y2="12"/>
+                        </svg>
+                        Crear categoría
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="cerrarModal('modalCategorias')">
+                Cerrar
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+    // ── Utilidades modal ──────────────────────────────────────────────────────
+    function abrirModal(id)  { document.getElementById(id).classList.add('open');    }
+    function cerrarModal(id) { 
+        const modal = document.getElementById(id);
+        modal.classList.remove('open');
+        
+        // Limpiar formularios al cerrar cualquiera de estos modales
+        if (id === 'modalCrear' || id === 'modalEditar' || id === 'modalCategorias') {
+            limpiarFormularios();
+        }
+    }
+window.cerrarModal = cerrarModal;
+    window.cerrarModal = cerrarModal;
+
+    // ── Abrir modales principales ─────────────────────────────────────────────
+    document.getElementById('btnNuevoProducto').addEventListener('click', () => {
+        const inputCodigo = document.getElementById('c_codigo');
+        if (inputCodigo) {
+            inputCodigo.removeAttribute('readonly'); // Aseguramos que se pueda escribir
+            inputCodigo.style.backgroundColor = '';  // Quitamos estilo de bloqueado
+            inputCodigo.style.cursor = 'default';
+        }
+        abrirModal('modalCrear');
+    });
+
+    document.getElementById('btnGestionarCategorias')
+            .addEventListener('click', () => abrirModal('modalCategorias'));
+
+    // ── Botones editar producto (UNIFICADO Y SEGURO) ───────────────────────────
+    document.querySelectorAll('.btn-editar-prod').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const d = this.dataset;
+
+            // Almacenar referencias de manera segura
+            const inputNombre = document.getElementById('e_nombre');
+            const inputCodigo = document.getElementById('e_codigo');
+            const inputPrecio = document.getElementById('e_precio');
+            const inputDesc   = document.getElementById('e_descripcion');
+            const checkDisp   = document.getElementById('e_disponible');
+            const checkAct    = document.getElementById('e_activo');
+            const selectCat   = document.getElementById('e_categoriaId');
+
+            // Asignar valores validando que el elemento exista en el DOM
+            if (inputNombre) inputNombre.value = d.nombre || '';
+            if (inputPrecio) inputPrecio.value = d.precio || '';
+            if (inputDesc)   inputDesc.value   = d.descripcion || '';
+            
+            // 2. Estado de los Checkboxes (IMPORTANTE: .checked espera booleano)
+            if (checkDisp) checkDisp.checked = (d.disponible === 'true');
+            if (checkAct)  checkAct.checked  = (d.activo === 'true');
+
+            // Selección limpia y nativa de la categoría
+            if (selectCat) {
+                selectCat.value = d.categoriaid || '';
+            }
+
+            // Configurar el campo de código como NO editable/bloqueado para la edición
+            if (inputCodigo) {
+                inputCodigo.value = d.codigo || '';
+                inputCodigo.setAttribute('readonly', 'true');      // Bloquea la edición del código
+                inputCodigo.style.backgroundColor = '#f3f4f6';     // Fondo gris visual de bloqueo
+                inputCodigo.style.cursor = 'not-allowed';          // Cursor de "prohibido"
+            }
+
+            // Configurar dinámicamente el destino del formulario con el ID del producto
+            const formEditar = document.getElementById('formEditar');
+            if (formEditar) {
+                formEditar.action = '/productos/' + d.id + '/editar';
+            }
+
+            abrirModal('modalEditar');
+        });
+    });
+
+    // ── Botones eliminar producto (INDEPENDIENTE Y FUNCIONAL) ──────────────────
+    document.querySelectorAll('.btn-eliminar-prod').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const txtNombre = document.getElementById('eliminarNombreProd');
+            const formEliminar = document.getElementById('formEliminarProd');
+            
+            if (txtNombre) txtNombre.textContent = this.dataset.nombre;
+            if (formEliminar) {
+                formEliminar.action = '/productos/' + this.dataset.id + '/eliminar';
+            }
+            abrirModal('modalEliminar');
+        });
+    });
+
+    // ── Botones editar categoría ──────────────────────────────────────────────
+    document.querySelectorAll('.btn-editar-cat').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const d = this.dataset;
+            document.getElementById('ec_nombre').value  = d.nombre  || '';
+            document.getElementById('ec_desc').value    = d.desc    || '';
+            document.getElementById('ec_orden').value   = d.orden   || 0;
+            document.getElementById('ec_activo').checked = (d.activo === 'true');
+
+            document.getElementById('formEditarCat').action =
+                '/productos/categorias/' + d.id + '/editar';
+
+            const panel = document.getElementById('panelEditarCat');
+            if (panel) {
+                panel.style.display = 'block';
+                panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        });
+    });
+
+    // ── Cerrar al hacer clic en overlay (CON LIMPIEZA) ──────────────────────
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+        overlay.addEventListener('click', e => {
+            if (e.target === overlay) {
+                const modalId = overlay.id;
+                overlay.classList.remove('open');
+                if (modalId === 'modalCrear' || modalId === 'modalEditar' || modalId === 'modalCategorias') {
+                    limpiarFormularios();
+                }
+            }
+        });
+    });
+
+    // ── Cerrar con Escape (CON LIMPIEZA) ─────────────────────────────────────
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.modal-overlay.open')
+                .forEach(m => {
+                    const modalId = m.id;
+                    m.classList.remove('open');
+                    if (modalId === 'modalCrear' || modalId === 'modalEditar' || modalId === 'modalCategorias') {
+                        limpiarFormularios();
+                    }
+                });
+        }
+    });
+
+    // ── Flash auto-ocultar ────────────────────────────────────────────────────
+    const flash = document.querySelector('.alert-flash');
+    if (flash) {
+        setTimeout(() => {
+            flash.style.transition = 'opacity .4s';
+            flash.style.opacity    = '0';
+            setTimeout(() => flash.remove(), 400);
+        }, 4000);
+    }
+
+    // ── Confirmar desactivar categoría ───────────────────────────────────────
+    document.querySelectorAll('.btn-desactivar-cat').forEach(btn => {
+        btn.addEventListener('click', function (e) {
+            const nombre = this.dataset.nombre || 'esta categoría';
+            if (!confirm('¿Desactivar la categoría «' + nombre + '»?')) {
+                e.preventDefault();
+            }
+        });
+    });
+
+    // ── Nombre categoría en MAYÚSCULAS ────────────────────────────────────────
+    ['nc_nombre', 'ec_nombre'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', () => {
+            const pos = el.selectionStart;
+            el.value = el.value.toUpperCase();
+            el.setSelectionRange(pos, pos);
+        });
+    });
+
+    // ── Código producto en MAYÚSCULAS ─────────────────────────────────────────
+    ['c_codigo', 'e_codigo'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', () => {
+            const pos = el.selectionStart;
+            el.value = el.value.toUpperCase();
+            el.setSelectionRange(pos, pos);
+        });
+    });
+
+    // ── Validación CREAR PRODUCTO ─────────────────────────────────────────────
+    const formCrear = document.getElementById('formCrear');
+    if (formCrear) {
+        formCrear.addEventListener('submit', async function (e) {
+            e.preventDefault(); 
+            
+            const nombre = document.getElementById('c_nombre');
+            const precio = document.getElementById('c_precio');
+            const cat    = document.getElementById('c_categoriaId');
+            const codigo = document.getElementById('c_codigo');
+            
+            let esValido = true;
+
+            [nombre, precio, cat, codigo].forEach(f => { if(f) f.classList.remove('is-invalid'); });
+
+            if (!nombre.value.trim()) { nombre.classList.add('is-invalid'); esValido = false; }
+            if (!precio.value || Number(precio.value) < 0) { precio.classList.add('is-invalid'); esValido = false; }
+            if (!cat.value) { cat.classList.add('is-invalid'); esValido = false; }
+
+            if (!esValido) return;
+
+            if (codigo && codigo.value.trim()) {
+                try {
+                    const codigoValor = codigo.value.trim().toUpperCase();
+                    const respuesta = await fetch(`/productos/api/verificar-codigo?codigo=${encodeURIComponent(codigoValor)}`);
+                    const existe = await respuesta.json();
+                    
+                    if (existe) {
+                        codigo.classList.add('is-invalid');
+                        alert("¡Error! El código interno ya existe en la base de datos.");
+                        esValido = false;
+                    }
+                } catch (error) {
+                    console.error("Error al validar:", error);
+                    esValido = false;
+                }
+            }
+
+            if (esValido) {
+                HTMLFormElement.prototype.submit.call(this);
+            }
+        });
+    }
+
+    // ── Validación EDITAR PRODUCTO ────────────────────────────────────────────
+    const formEditar = document.getElementById('formEditar');
+    if (formEditar) {
+        formEditar.addEventListener('submit', function (e) {
+            const nombre = document.getElementById('e_nombre');
+            const precio = document.getElementById('e_precio');
+            const cat    = document.getElementById('e_categoriaId');
+
+            let ok = true;
+
+            [nombre, precio, cat].forEach(f => { if(f) f.classList.remove('is-invalid'); });
+
+            if (!nombre.value.trim()) { 
+                nombre.classList.add('is-invalid'); 
+                ok = false; 
+            }
+            if (!precio.value || Number(precio.value) < 0) { 
+                precio.classList.add('is-invalid'); 
+                ok = false; 
+            }
+            if (!cat.value) { 
+                cat.classList.add('is-invalid');    
+                ok = false; 
+            }
+
+            if (!ok) {
+                e.preventDefault();
+            }
+        });
+    }
+
+    // ── Validación CREAR CATEGORÍA ────────────────────────────────────────────
+    const formCrearCat = document.getElementById('formCrearCat');
+    if (formCrearCat) {
+        formCrearCat.addEventListener('submit', function (e) {
+            const nombre = document.getElementById('nc_nombre');
+            if (nombre) {
+                nombre.classList.remove('is-invalid');
+                if (nombre.value.trim().length < 2) {
+                    nombre.classList.add('is-invalid');
+                    e.preventDefault();
+                }
+            }
+        });
+    }
+
+    // ── Validación EDITAR CATEGORÍA ───────────────────────────────────────────
+    const formEditarCat = document.getElementById('formEditarCat');
+    if (formEditarCat) {
+        formEditarCat.addEventListener('submit', function (e) {
+            const nombre = document.getElementById('ec_nombre');
+            if (nombre) {
+                nombre.classList.remove('is-invalid');
+                if (nombre.value.trim().length < 2) {
+                    nombre.classList.add('is-invalid');
+                    e.preventDefault();
+                }
+            }
+        });
+    }
+
+    // Función para limpiar formularios específicos
+    function limpiarFormularios() {
+        // Limpiar formulario de crear producto
+        const formCrear = document.getElementById('formCrear');
+        if (formCrear) {
+            formCrear.reset(); // Limpia todos los campos del formulario
+            
+            // Asegurar que los checkboxes mantengan el estado por defecto (true/checked)
+            const chkDisponible = document.getElementById('c_disponible');
+            const chkActivo = document.getElementById('c_activo');
+            if (chkDisponible) chkDisponible.checked = true;
+            if (chkActivo) chkActivo.checked = true;
+            
+            // Limpiar clases de error
+            const inputsInvalidos = formCrear.querySelectorAll('.is-invalid');
+            inputsInvalidos.forEach(input => input.classList.remove('is-invalid'));
+            
+            // Remover readonly del campo código (por si acaso)
+            const codigoInput = document.getElementById('c_codigo');
+            if (codigoInput) {
+                codigoInput.removeAttribute('readonly');
+                codigoInput.style.backgroundColor = '';
+                codigoInput.style.cursor = 'default';
+            }
+        }
+        
+        // Limpiar formulario de editar producto (por si quedó algo)
+        const formEditar = document.getElementById('formEditar');
+        if (formEditar) {
+            formEditar.reset();
+            const inputsInvalidos = formEditar.querySelectorAll('.is-invalid');
+            inputsInvalidos.forEach(input => input.classList.remove('is-invalid'));
+        }
+        
+        // Limpiar panel de edición de categoría y cerrarlo
+        const panelEditarCat = document.getElementById('panelEditarCat');
+        if (panelEditarCat) {
+            panelEditarCat.style.display = 'none';
+            const formEditarCat = document.getElementById('formEditarCat');
+            if (formEditarCat) formEditarCat.reset();
+        }
+        
+        // Limpiar formulario de crear categoría
+        const formCrearCat = document.getElementById('formCrearCat');
+        if (formCrearCat) {
+            formCrearCat.reset();
+            // Asegurar que el checkbox activo esté marcado por defecto
+            const chkActivoCat = document.getElementById('nc_activo');
+            if (chkActivoCat) chkActivoCat.checked = true;
+            
+            // Limpiar clases de error
+            const inputsInvalidos = formCrearCat.querySelectorAll('.is-invalid');
+            inputsInvalidos.forEach(input => input.classList.remove('is-invalid'));
+        }
+    }
+});
+</script>
+
+</main>
+</body>
+</html>

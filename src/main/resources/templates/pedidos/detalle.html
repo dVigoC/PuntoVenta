@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="es"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      th:replace="~{layout :: layout(${' Pedido · ' + pedido.numeroPedido}, ~{::main})}">
+<body>
+<main>
+
+<style>
+/* ══════════════════════════════════════════════════════════════
+   DETALLE DE PEDIDO
+══════════════════════════════════════════════════════════════ */
+:root {
+    --ped-abierto-color:   #1d4ed8;
+    --ped-cocina-color:    #c2410c;
+    --ped-servido-color:   #15803d;
+    --ped-cobrado-color:   #475569;
+    --ped-anulado-color:   #9f1239;
+}
+
+/* ── Breadcrumb ─────────────────────────────────────────────── */
+.breadcrumb {
+    display: flex; align-items: center; gap: .4rem;
+    font-size: .79rem; color: var(--text-sub); margin-bottom: 1rem;
+}
+.breadcrumb a { color: var(--text-sub); text-decoration: none; }
+.breadcrumb a:hover { color: var(--primary); text-decoration: underline; }
+.breadcrumb svg { width: 12px; height: 12px; }
+
+/* ── Header del pedido ──────────────────────────────────────── */
+.pedido-header {
+    background: linear-gradient(135deg, #1d3557 0%, #023e8a 100%);
+    border-radius: var(--radius);
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.25rem;
+    display: flex; align-items: center;
+    gap: 1.25rem; flex-wrap: wrap;
+}
+.ph-numero {
+    font-family: 'Courier New', monospace;
+    font-size: 1.1rem; font-weight: 800; color: #fff;
+    letter-spacing: .03em;
+    background: rgba(255,255,255,.12);
+    border-radius: 8px; padding: .3rem .75rem; flex-shrink: 0;
+}
+.ph-mesa {
+    display: flex; align-items: center; gap: .4rem;
+    font-size: .9rem; font-weight: 600; color: rgba(255,255,255,.9);
+}
+.ph-mesa svg { width: 15px; height: 15px; opacity: .8; }
+.ph-estado {
+    display: inline-flex; align-items: center; gap: .35rem;
+    padding: .28rem .75rem; border-radius: 20px;
+    font-size: .78rem; font-weight: 800; letter-spacing: .04em;
+}
+.phe-abierto  { background: #dbeafe; color: #1d4ed8; }
+.phe-cocina   { background: #ffedd5; color: #c2410c; }
+.phe-servido  { background: #dcfce7; color: #15803d; }
+.phe-cobrado  { background: #f1f5f9; color: #475569; }
+.phe-anulado  { background: #fee2e2; color: #9f1239; }
+.ph-fecha {
+    font-size: .77rem; color: rgba(255,255,255,.65); margin-left: auto;
+}
+
+/* ── Layout dos columnas ────────────────────────────────────── */
+.detalle-layout {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 1.1rem;
+    align-items: start;
+}
+@media (max-width: 820px) {
+    .detalle-layout { grid-template-columns: 1fr; }
+}
+
+/* ── Tabla de ítems ─────────────────────────────────────────── */
+.items-section { min-width: 0; }
+.badge-item {
+    display: inline-block; padding: .15rem .5rem;
+    border-radius: 20px; font-size: .68rem; font-weight: 700; white-space: nowrap;
+}
+.bi-pendiente { background: #eff6ff; color: #1d4ed8; }
+.bi-en_prep   { background: #fff7ed; color: #c2410c; }
+.bi-listo     { background: #f0fdf4; color: #15803d; }
+.bi-servido   { background: #f1f5f9; color: #475569; }
+.bi-anulado   { background: #fee2e2; color: #9f1239; text-decoration: line-through; }
+
+.nota-cocina-tag {
+    font-size: .71rem; color: #c2410c;
+    background: #fff7ed; border-radius: 4px;
+    padding: .1rem .35rem; display: inline-block; margin-top: .2rem;
+}
+.item-anulado td { opacity: .5; }
+
+/* ── Panel resumen (derecha) ────────────────────────────────── */
+.resumen-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    position: sticky; top: calc(var(--topbar-h) + 1rem);
+}
+.resumen-header {
+    padding: .8rem 1rem;
+    background: #f8fafc;
+    border-bottom: 1px solid var(--border);
+    font-size: .8rem; font-weight: 700; color: var(--text-main);
+}
+.resumen-body { padding: 1rem; }
+
+.resumen-row {
+    display: flex; justify-content: space-between;
+    align-items: center; font-size: .83rem;
+    color: var(--text-sub); margin-bottom: .45rem;
+}
+.resumen-row.total {
+    font-size: 1.05rem; font-weight: 800; color: #1d3557;
+    margin-top: .6rem; padding-top: .6rem;
+    border-top: 1.5px solid var(--border); margin-bottom: 0;
+}
+
+/* ── Sección de impresión en el resumen ─────────────────────── */
+.print-section {
+    margin-top: .9rem;
+    padding-top: .9rem;
+    border-top: 1px solid var(--border);
+}
+.print-section-label {
+    font-size: .67rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .09em;
+    color: var(--text-sub); margin-bottom: .55rem;
+}
+
+/* Botones de acción de impresión */
+.btn-print-action {
+    display: flex; align-items: center; gap: .45rem;
+    width: 100%;
+    padding: .52rem .85rem;
+    border-radius: 8px; border: 1.5px solid transparent;
+    font-size: .82rem; font-weight: 600; font-family: inherit;
+    cursor: pointer; transition: all .15s;
+    text-decoration: none;
+    margin-bottom: .4rem;
+}
+.btn-print-action svg { width: 15px; height: 15px; flex-shrink: 0; }
+.btn-print-action:last-child { margin-bottom: 0; }
+
+.bpa-comanda {
+    background: #fff7ed; color: #c2410c; border-color: #fed7aa;
+}
+.bpa-comanda:hover { background: #ffedd5; }
+
+.bpa-ticket {
+    background: #f0fdf4; color: #15803d; border-color: #bbf7d0;
+}
+.bpa-ticket:hover { background: #dcfce7; }
+
+/* Badge de ítems pendientes */
+.pending-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    background: #ef4444; color: #fff;
+    font-size: .64rem; font-weight: 800;
+    border-radius: 20px; min-width: 18px; height: 18px;
+    padding: 0 5px; margin-left: auto;
+}
+
+/* ── Historial de comandas ──────────────────────────────────── */
+.comandas-section {
+    margin-top: .9rem;
+    padding-top: .9rem;
+    border-top: 1px solid var(--border);
+}
+.comanda-chip {
+    display: flex; align-items: center;
+    gap: .5rem;
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: .45rem .65rem;
+    margin-bottom: .3rem;
+    font-size: .76rem;
+}
+.comanda-chip:last-child { margin-bottom: 0; }
+.comanda-chip-num {
+    font-family: 'Courier New', monospace;
+    font-weight: 800; color: #1d3557; flex: 1;
+}
+.comanda-chip-badge {
+    display: inline-block;
+    padding: .12rem .45rem; border-radius: 20px;
+    font-size: .65rem; font-weight: 700;
+}
+.cc-enviada  { background: #eff6ff; color: #1d4ed8; }
+.cc-en_prep  { background: #fff7ed; color: #c2410c; }
+.cc-lista    { background: #f0fdf4; color: #15803d; }
+.cc-entregada{ background: #f1f5f9; color: #475569; }
+.comanda-chip-link {
+    font-size: .72rem; color: var(--text-sub); text-decoration: none;
+    padding: .15rem .4rem; border-radius: 5px;
+    border: 1px solid var(--border);
+    background: #fff; transition: background .13s;
+    flex-shrink: 0;
+}
+.comanda-chip-link:hover { background: #f1f5f9; }
+
+/* ── Estado-flow ────────────────────────────────────────────── */
+.estado-flow { display: flex; flex-direction: column; gap: .4rem; margin-top: .9rem; }
+.estado-flow-label {
+    font-size: .67rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .09em;
+    color: var(--text-sub); margin-bottom: .1rem;
+}
+.btn-estado {
+    display: flex; align-items: center; gap: .4rem;
+    padding: .48rem .75rem;
+    border-radius: 8px; border: 1.5px solid transparent;
+    font-size: .8rem; font-weight: 600; font-family: inherit;
+    cursor: pointer; width: 100%; transition: all .15s;
+}
+.btn-estado svg { width: 14px; height: 14px; flex-shrink: 0; }
+.be-cocina  { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+.be-cocina:hover  { background: #ffedd5; }
+.be-servido { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+.be-servido:hover { background: #dcfce7; }
+.be-cobrado { background: #f1f5f9; color: #475569; border-color: #e2e8f0; }
+.be-cobrado:hover { background: #e2e8f0; }
+.be-anular  { background: #fff1f2; color: #9f1239; border-color: #fecdd3; }
+.be-anular:hover  { background: #fee2e2; }
+
+/* ── Modales agregar ítems ──────────────────────────────────── */
+.modal-agregar { max-width: 720px; }
+.productos-panel-m {
+    border: 1.5px solid var(--border); border-radius: 10px;
+    overflow: hidden; display: flex; flex-direction: column; height: 360px;
+}
+.productos-search-m {
+    padding: .5rem .7rem; border-bottom: 1px solid var(--border);
+    background: #f8fafc; position: relative;
+}
+.productos-search-m svg {
+    position: absolute; left: 1.2rem; top: 50%;
+    transform: translateY(-50%);
+    width: 13px; height: 13px; color: var(--text-sub);
+}
+.productos-search-m input {
+    width: 100%; padding: .38rem .65rem .38rem 1.9rem;
+    font-size: .83rem; font-family: inherit;
+    border: 1px solid var(--border); border-radius: 7px;
+    background: #fff; outline: none; transition: border-color .2s;
+}
+.productos-search-m input:focus { border-color: var(--primary); }
+.cat-tabs-m {
+    display: flex; overflow-x: auto; border-bottom: 1px solid var(--border);
+    background: #f8fafc; scrollbar-width: none; flex-shrink: 0;
+}
+.cat-tabs-m::-webkit-scrollbar { display: none; }
+.cat-tab-m {
+    padding: .38rem .78rem; font-size: .74rem; font-weight: 600;
+    color: var(--text-sub); white-space: nowrap; cursor: pointer;
+    border-bottom: 2px solid transparent; transition: all .15s; flex-shrink: 0;
+    border: none; background: none; font-family: inherit;
+}
+.cat-tab-m:hover { color: var(--primary); }
+.cat-tab-m.active { color: #1d3557; border-bottom-color: #1d3557; }
+.prods-list-m { overflow-y: auto; flex: 1; padding: .35rem; }
+.prod-row-m {
+    display: flex; align-items: center; padding: .42rem .5rem;
+    border-radius: 8px; gap: .55rem; cursor: pointer;
+    transition: background .13s; border: 1px solid transparent;
+}
+.prod-row-m:hover { background: #f1f5f9; }
+.prod-row-m.sel { background: #eff6ff; border-color: #bfdbfe; }
+.prm-check {
+    width: 15px; height: 15px; border-radius: 4px;
+    border: 1.5px solid var(--border);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.prod-row-m.sel .prm-check { background: #1d3557; border-color: #1d3557; }
+.prm-dot { width: 6px; height: 6px; border-radius: 50%; background: #fff; display: none; }
+.prod-row-m.sel .prm-dot { display: block; }
+.prm-nombre { flex: 1; font-size: .83rem; font-weight: 500; color: var(--text-main); }
+.prm-cat { font-size: .66rem; color: var(--text-sub); }
+.prm-precio { font-size: .82rem; font-weight: 700; color: #1d3557; white-space: nowrap; }
+.mini-carrito {
+    border: 1.5px solid var(--border); border-radius: 10px;
+    overflow: hidden; margin-top: .9rem;
+}
+.mini-carrito-header {
+    padding: .5rem .75rem; background: #f8fafc;
+    border-bottom: 1px solid var(--border);
+    font-size: .76rem; font-weight: 700; color: var(--text-main);
+    display: flex; justify-content: space-between;
+}
+.mini-items { max-height: 180px; overflow-y: auto; }
+.mini-item {
+    display: flex; align-items: center; gap: .45rem;
+    padding: .42rem .65rem; border-bottom: 1px solid var(--border);
+}
+.mini-item:last-child { border-bottom: none; }
+.mi-nombre { flex: 1; font-size: .8rem; font-weight: 600; color: var(--text-main); }
+.mi-nota {
+    font-size: .7rem; font-family: inherit; color: var(--text-sub);
+    border: 1px solid var(--border); border-radius: 5px;
+    padding: .18rem .4rem; background: #fafafa; outline: none; width: 110px;
+}
+.mi-nota:focus { border-color: var(--primary); }
+.mi-qty { display: flex; align-items: center; gap: .2rem; }
+.mi-qty-btn {
+    width: 20px; height: 20px; border-radius: 4px; border: 1px solid var(--border);
+    background: #f1f5f9; font-size: .78rem; font-weight: 700; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; font-family: inherit;
+}
+.mi-qty-btn:hover { background: #e2e8f0; }
+.mi-qty-val { font-size: .83rem; font-weight: 800; min-width: 18px; text-align: center; }
+.mi-sub { font-size: .8rem; font-weight: 700; color: #1d3557; min-width: 50px; text-align: right; }
+.mi-remove {
+    background: none; border: none; cursor: pointer; color: #9b2226;
+    padding: 2px; border-radius: 4px; display: flex;
+}
+.mini-empty { text-align: center; padding: 1.2rem; font-size: .8rem; color: var(--text-sub); }
+
+/* ── Modales editar/anular ítem ─────────────────────────────── */
+.modal-editar-item  { max-width: 400px; }
+.modal-confirm-item { max-width: 390px; }
+</style>
+
+<!-- ══ BREADCRUMB ════════════════════════════════════════════════════════════ -->
+<div class="breadcrumb">
+    <a th:href="@{/pedidos}">Pedidos</a>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="9 18 15 12 9 6"/>
+    </svg>
+    <span th:text="${pedido.numeroPedido}">PED-...</span>
+</div>
+
+<!-- ══ FLASH ════════════════════════════════════════════════════════════════ -->
+<div th:if="${flashMensaje != null}"
+     th:classappend="${flashTipo == 'success' ? 'success' : 'error'}"
+     class="alert-flash">
+    <svg th:if="${flashTipo == 'success'}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" style="width:15px;height:15px;flex-shrink:0">
+        <polyline points="20 6 9 17 4 12"/>
+    </svg>
+    <svg th:unless="${flashTipo == 'success'}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" style="width:15px;height:15px;flex-shrink:0">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    <span th:text="${flashMensaje}"></span>
+</div>
+
+<!-- ══ HEADER DEL PEDIDO ════════════════════════════════════════════════════ -->
+<div class="pedido-header">
+    <span class="ph-numero" th:text="${pedido.numeroPedido}">PED-...</span>
+
+    <div class="ph-mesa">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 6h18M3 12h18M3 18h18"/>
+        </svg>
+        <span th:text="${pedido.mesa.area.nombre + ' · Mesa ' + pedido.mesa.numero}">A · 1</span>
+    </div>
+
+    <span class="ph-estado"
+          th:classappend="${pedido.estado == 'ABIERTO'   ? 'phe-abierto'  :
+                            pedido.estado == 'EN_COCINA' ? 'phe-cocina'   :
+                            pedido.estado == 'SERVIDO'   ? 'phe-servido'  :
+                            pedido.estado == 'COBRADO'   ? 'phe-cobrado'  :
+                                                           'phe-anulado'}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+             style="width:12px;height:12px">
+            <circle cx="12" cy="12" r="10"/>
+        </svg>
+        <span th:text="${pedido.estado == 'EN_COCINA' ? 'En cocina' : pedido.estado}">ESTADO</span>
+    </span>
+
+    <!-- Botón agregar ítems -->
+    <button th:if="${pedido.estado != 'COBRADO' and pedido.estado != 'ANULADO'}"
+            class="btn btn-create btn-sm" id="btnAgregarItems"
+            style="margin-left:auto;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             style="width:13px;height:13px">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        Agregar ítems
+    </button>
+
+    <div class="ph-fecha"
+         th:text="'Creado: ' + ${#temporals.format(pedido.creadoEn, 'dd/MM/yyyy HH:mm')}">
+    </div>
+</div>
+
+<!-- ══ LAYOUT PRINCIPAL ════════════════════════════════════════════════════ -->
+<div class="detalle-layout">
+
+    <!-- ── Columna ítems ──────────────────────────────────────── -->
+    <div>
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         style="width:14px;height:14px;vertical-align:middle;margin-right:.3rem">
+                        <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
+                        <line x1="8" y1="18" x2="21" y2="18"/>
+                        <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/>
+                        <line x1="3" y1="18" x2="3.01" y2="18"/>
+                    </svg>
+                    Ítems del pedido
+                </span>
+                <span style="font-size:.77rem; color:var(--text-sub);"
+                      th:text="${#lists.size(pedido.detalles)} + ' ítem(s)'">0 ítems</span>
+            </div>
+
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th style="text-align:center; width:80px">Cant.</th>
+                            <th style="text-align:right">P.Unit</th>
+                            <th style="text-align:right">Subtotal</th>
+                            <th>Estado</th>
+                            <th th:if="${pedido.estado != 'COBRADO' and pedido.estado != 'ANULADO'}"
+                                style="text-align:center; width:110px">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:if="${#lists.isEmpty(pedido.detalles)}">
+                            <td colspan="6" style="text-align:center; padding:2rem; color:var(--text-sub); font-size:.85rem;">
+                                Sin ítems en este pedido.
+                            </td>
+                        </tr>
+
+                        <tr th:each="item : ${pedido.detalles}"
+                            th:classappend="${item.estadoItem == 'ANULADO' ? 'item-anulado' : ''}">
+
+                            <td>
+                                <div style="font-weight:600; font-size:.87rem;"
+                                     th:text="${item.producto.nombre}">Producto</div>
+                                <div class="nota-cocina-tag"
+                                     th:if="${item.notaCocina != null and !#strings.isEmpty(item.notaCocina)}"
+                                     th:text="'🍳 ' + ${item.notaCocina}">nota</div>
+                                <div style="font-size:.72rem; color:var(--text-sub); margin-top:.15rem;"
+                                     th:text="${item.producto.categoria.nombre}">Cat</div>
+                            </td>
+
+                            <td style="text-align:center;">
+                                <span style="font-size:.85rem; font-weight:700;"
+                                      th:text="${item.cantidad}">0</span>
+                            </td>
+
+                            <td style="text-align:right; font-size:.84rem; color:var(--text-sub)">
+                                S/ <span th:text="${#numbers.formatDecimal(item.precioUnitario, 1, 2)}">0.00</span>
+                            </td>
+
+                            <td style="text-align:right; font-size:.86rem; font-weight:700; color:#1d3557;">
+                                S/ <span th:text="${#numbers.formatDecimal(item.subtotal, 1, 2)}">0.00</span>
+                            </td>
+
+                            <td>
+                                <span class="badge-item"
+                                      th:classappend="${item.estadoItem == 'PENDIENTE' ? 'bi-pendiente' :
+                                                       item.estadoItem == 'EN_PREP'   ? 'bi-en_prep'   :
+                                                       item.estadoItem == 'LISTO'     ? 'bi-listo'     :
+                                                       item.estadoItem == 'SERVIDO'   ? 'bi-servido'   :
+                                                                                         'bi-anulado'}">
+                                    <span th:text="${item.estadoItem == 'EN_PREP'   ? 'En prep.'  :
+                                                    item.estadoItem == 'PENDIENTE'  ? 'Pendiente' :
+                                                    item.estadoItem == 'LISTO'      ? 'Listo'     :
+                                                    item.estadoItem == 'SERVIDO'    ? 'Servido'   :
+                                                                                      'Anulado'}">-</span>
+                                </span>
+                                <!-- Si tiene comanda asignada -->
+                                <div th:if="${item.comandaRef != null and !#strings.isEmpty(item.comandaRef)}"
+                                     style="font-size:.65rem; color:var(--text-sub); margin-top:.2rem;"
+                                     th:text="${item.comandaRef}">COM-...</div>
+                            </td>
+
+                            <td th:if="${pedido.estado != 'COBRADO' and pedido.estado != 'ANULADO'}">
+                                <div style="display:flex; gap:.28rem; justify-content:center;"
+                                     th:if="${item.estadoItem != 'ANULADO'}">
+                                    <button class="btn btn-edit btn-sm btn-editar-item"
+                                            th:data-itemid="${item.id}"
+                                            th:data-pedidoid="${pedido.id}"
+                                            th:data-nombre="${item.producto.nombre}"
+                                            th:data-cantidad="${item.cantidad}"
+                                            th:data-nota="${item.notaCocina}"
+                                            title="Editar ítem">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                             style="width:12px;height:12px">
+                                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                        </svg>
+                                    </button>
+                                    <button class="btn btn-delete btn-sm btn-anular-item"
+                                            th:data-itemid="${item.id}"
+                                            th:data-pedidoid="${pedido.id}"
+                                            th:data-nombre="${item.producto.nombre}"
+                                            title="Anular ítem">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                             style="width:12px;height:12px">
+                                            <circle cx="12" cy="12" r="10"/>
+                                            <line x1="15" y1="9" x2="9" y2="15"/>
+                                            <line x1="9" y1="9" x2="15" y2="15"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div><!-- /columna ítems -->
+
+    <!-- ── Columna resumen lateral ────────────────────────────── -->
+    <div>
+        <div class="resumen-card">
+            <div class="resumen-header">Resumen del pedido</div>
+            <div class="resumen-body">
+
+                <!-- Totales -->
+                <div class="resumen-row">
+                    <span>Subtotal</span>
+                    <span>S/ <span th:text="${#numbers.formatDecimal(pedido.subtotal, 1, 2)}">0.00</span></span>
+                </div>
+                <div class="resumen-row">
+                    <span>IGV (18%)</span>
+                    <span>S/ <span th:text="${#numbers.formatDecimal(pedido.igv, 1, 2)}">0.00</span></span>
+                </div>
+                <div class="resumen-row"
+                     th:if="${pedido.descuento.compareTo(T(java.math.BigDecimal).ZERO) > 0}">
+                    <span>Descuento</span>
+                    <span style="color:#15803d;">
+                        − S/ <span th:text="${#numbers.formatDecimal(pedido.descuento, 1, 2)}">0.00</span>
+                    </span>
+                </div>
+                <div class="resumen-row total">
+                    <span>Total</span>
+                    <span>S/ <span th:text="${#numbers.formatDecimal(pedido.total, 1, 2)}">0.00</span></span>
+                </div>
+
+                <!-- ══ SECCIÓN IMPRESIÓN ═══════════════════════════ -->
+                <div class="print-section"
+                     th:if="${pedido.estado != 'ANULADO'}">
+
+                    <div class="print-section-label">Comandas e impresión</div>
+
+                    <!--
+                        BOTÓN: Enviar a cocina + imprimir comanda
+                        Visible si hay ítems PENDIENTES sin comanda_ref
+                        Solo cuando el pedido no está COBRADO ni ANULADO
+                    -->
+                    <th:block th:if="${pedido.estado != 'COBRADO'}">
+                        <th:block th:with="
+                            itemsPendientes=${pedido.detalles.?[estadoItem == 'PENDIENTE' and (comandaRef == null or comandaRef == '')]}">
+
+                            <form th:if="${!#lists.isEmpty(itemsPendientes)}"
+                                  th:action="@{/pedidos/{id}/comanda-cocina(id=${pedido.id})}"
+                                  method="post">
+                                <input type="hidden"
+                                       th:name="${_csrf?.parameterName}"
+                                       th:value="${_csrf?.token}"/>
+                                <button type="submit" class="btn-print-action bpa-comanda">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/>
+                                        <path d="M7 2v20"/>
+                                        <path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/>
+                                    </svg>
+                                    Enviar a cocina
+                                    <span class="pending-badge"
+                                          th:text="${#lists.size(itemsPendientes)}">0</span>
+                                </button>
+                            </form>
+
+                            <!-- Sin ítems pendientes -->
+                            <div th:if="${#lists.isEmpty(itemsPendientes)}"
+                                 style="font-size:.76rem; color:var(--text-sub); text-align:center;
+                                        padding:.55rem; background:#f8fafc; border-radius:8px;
+                                        border:1px dashed var(--border); margin-bottom:.4rem;">
+                                Sin ítems pendientes de envío
+                            </div>
+                        </th:block>
+                    </th:block>
+
+                    <!--
+                        BOTÓN: Imprimir ticket de cobro
+                        Visible desde ABIERTO hasta COBRADO (no ANULADO)
+                    -->
+                    <a th:href="@{/pedidos/{id}/ticket(id=${pedido.id})}"
+                       target="_blank"
+                       class="btn-print-action bpa-ticket">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="6 9 6 2 18 2 18 9"/>
+                            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+                            <rect x="6" y="14" width="12" height="8"/>
+                        </svg>
+                        Imprimir ticket de cobro
+                    </a>
+
+                    <!-- Historial de comandas enviadas -->
+                    <div class="comandas-section" th:if="${!#lists.isEmpty(comandas)}">
+                        <div class="print-section-label" style="margin-bottom:.45rem;">
+                            Comandas enviadas a cocina
+                        </div>
+                        <div th:each="c : ${comandas}" class="comanda-chip">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                 style="width:12px;height:12px;color:var(--text-sub);flex-shrink:0">
+                                <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/>
+                                <path d="M7 2v20"/>
+                                <path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/>
+                            </svg>
+                            <span class="comanda-chip-num" th:text="${c.numeroComanda}">COM-...</span>
+                            <span class="comanda-chip-badge"
+                                  th:classappend="${c.estado == 'ENVIADA'   ? 'cc-enviada'   :
+                                                   c.estado == 'EN_PREP'   ? 'cc-en_prep'   :
+                                                   c.estado == 'LISTA'     ? 'cc-lista'     :
+                                                                              'cc-entregada'}">
+                                <span th:text="${c.estado == 'EN_PREP' ? 'En prep.' : c.estado}">—</span>
+                            </span>
+                            <a th:href="@{/pedidos/comanda/{id}/imprimir(id=${c.id})}"
+                               target="_blank"
+                               class="comanda-chip-link"
+                               title="Reimprimir esta comanda">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                     style="width:11px;height:11px">
+                                    <polyline points="6 9 6 2 18 2 18 9"/>
+                                    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+                                    <rect x="6" y="14" width="12" height="8"/>
+                                </svg>
+                            </a>
+                        </div>
+                    </div>
+                </div><!-- /print-section -->
+
+                <!-- ══ CAMBIAR ESTADO ══════════════════════════════ -->
+                <div class="estado-flow"
+                     th:if="${pedido.estado != 'COBRADO' and pedido.estado != 'ANULADO'}">
+                    <div class="estado-flow-label">Cambiar estado</div>
+
+                    <form th:action="@{/pedidos/{id}/estado(id=${pedido.id})}" method="post"
+                          th:if="${pedido.estado == 'ABIERTO'}">
+                        <input type="hidden" th:name="${_csrf?.parameterName}" th:value="${_csrf?.token}"/>
+                        <input type="hidden" name="nuevoEstado" value="EN_COCINA">
+                        <button type="submit" class="btn-estado be-cocina">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/>
+                                <path d="M7 2v20"/>
+                                <path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/>
+                            </svg>
+                            Marcar en cocina
+                        </button>
+                    </form>
+
+                    <form th:action="@{/pedidos/{id}/estado(id=${pedido.id})}" method="post"
+                          th:if="${pedido.estado == 'EN_COCINA'}">
+                        <input type="hidden" th:name="${_csrf?.parameterName}" th:value="${_csrf?.token}"/>
+                        <input type="hidden" name="nuevoEstado" value="SERVIDO">
+                        <button type="submit" class="btn-estado be-servido">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/>
+                            </svg>
+                            Marcar como servido
+                        </button>
+                    </form>
+
+                    <form th:action="@{/pedidos/{id}/estado(id=${pedido.id})}" method="post"
+                          th:if="${pedido.estado == 'SERVIDO'}">
+                        <input type="hidden" th:name="${_csrf?.parameterName}" th:value="${_csrf?.token}"/>
+                        <input type="hidden" name="nuevoEstado" value="COBRADO">
+                        <button type="submit" class="btn-estado be-cobrado">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="12" y1="1" x2="12" y2="23"/>
+                                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                            </svg>
+                            Cobrar pedido
+                        </button>
+                    </form>
+
+                    <form th:action="@{/pedidos/{id}/anular(id=${pedido.id})}" method="post"
+                          onsubmit="return confirm('¿Seguro que deseas anular este pedido?')">
+                        <input type="hidden" th:name="${_csrf?.parameterName}" th:value="${_csrf?.token}"/>
+                        <button type="submit" class="btn-estado be-anular">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <line x1="15" y1="9" x2="9" y2="15"/>
+                                <line x1="9" y1="9" x2="15" y2="15"/>
+                            </svg>
+                            Anular pedido
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Volver -->
+                <a th:href="@{/pedidos}" class="btn btn-secondary"
+                   style="width:100%; justify-content:center; margin-top:.9rem; font-size:.8rem;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         style="width:13px;height:13px">
+                        <polyline points="15 18 9 12 15 6"/>
+                    </svg>
+                    Volver a pedidos
+                </a>
+
+            </div><!-- /resumen-body -->
+        </div><!-- /resumen-card -->
+    </div><!-- /columna resumen -->
+
+</div><!-- /detalle-layout -->
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     MODAL: AGREGAR ÍTEMS AL PEDIDO
+══════════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalAgregarItems">
+    <div class="modal modal-agregar">
+        <div class="modal-header">
+            <span class="modal-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:15px;height:15px;vertical-align:middle;margin-right:.35rem">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Agregar ítems al pedido
+            </span>
+            <button class="modal-close" onclick="cerrarModal('modalAgregarItems')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:17px;height:17px">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+
+        <form th:action="@{/pedidos/{id}/agregar-items(id=${pedido.id})}"
+              method="post" id="formAgregarItems" novalidate>
+            <input type="hidden" th:name="${_csrf?.parameterName}" th:value="${_csrf?.token}"/>
+            <div id="agregarItemsHidden"></div>
+
+            <div class="modal-body">
+                <div class="productos-panel-m">
+                    <div class="productos-search-m">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"/>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                        </svg>
+                        <input type="text" id="buscarProductoM"
+                               placeholder="Buscar producto…" autocomplete="off">
+                    </div>
+                    <div class="cat-tabs-m" id="catTabsM">
+                        <button type="button" class="cat-tab-m active" data-cat="todos">Todos</button>
+                        <button type="button" class="cat-tab-m"
+                                th:each="cat : ${categorias}"
+                                th:data-cat="${cat.id}"
+                                th:text="${cat.nombre}">Cat</button>
+                    </div>
+                    <div class="prods-list-m" id="prodsListM">
+                        <div th:each="p : ${productos}" class="prod-row-m"
+                             th:data-id="${p.id}"
+                             th:data-nombre="${p.nombre}"
+                             th:data-precio="${p.precio}"
+                             th:data-cat="${p.categoria.id}">
+                            <div class="prm-check"><div class="prm-dot"></div></div>
+                            <div class="prm-nombre">
+                                <span th:text="${p.nombre}">Producto</span>
+                                <div class="prm-cat" th:text="${p.categoria.nombre}">Cat</div>
+                            </div>
+                            <div class="prm-precio">
+                                S/ <span th:text="${#numbers.formatDecimal(p.precio, 1, 2)}">0.00</span>
+                            </div>
+                        </div>
+                        <div id="prodsListMVacio"
+                             style="display:none; text-align:center; padding:1.2rem;
+                                    color:var(--text-sub); font-size:.81rem;">Sin resultados</div>
+                    </div>
+                </div>
+
+                <div class="mini-carrito">
+                    <div class="mini-carrito-header">
+                        <span>Ítems a agregar
+                            <span id="miniCarritoCount" style="color:#1d3557; font-weight:800;"></span>
+                        </span>
+                        <button type="button" class="btn btn-secondary btn-sm"
+                                style="font-size:.68rem; padding:.18rem .45rem;"
+                                onclick="limpiarMiniCarrito()">Limpiar</button>
+                    </div>
+                    <div id="miniCarritoEmpty" class="mini-empty">
+                        Selecciona productos de arriba para agregar
+                    </div>
+                    <div class="mini-items" id="miniCarritoItems" style="display:none;"></div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary"
+                        onclick="cerrarModal('modalAgregarItems')">Cancelar</button>
+                <button type="submit" class="btn btn-create" id="btnAgregarSubmit" disabled>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         style="width:14px;height:14px">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    Agregar al pedido
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     MODAL: EDITAR ÍTEM
+══════════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalEditarItem">
+    <div class="modal modal-editar-item">
+        <div class="modal-header">
+            <span class="modal-title">Editar ítem</span>
+            <button class="modal-close" onclick="cerrarModal('modalEditarItem')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:17px;height:17px">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+        <form id="formEditarItem" method="post">
+            <input type="hidden" th:name="${_csrf?.parameterName}" th:value="${_csrf?.token}"/>
+            <input type="hidden" name="pedidoId" id="editItemPedidoId">
+            <div class="modal-body">
+                <div style="font-size:.85rem; font-weight:700; color:var(--text-main);
+                            margin-bottom:.85rem;" id="editItemNombre">—</div>
+                <div class="form-group">
+                    <label class="form-label">Cantidad <span style="color:#b91c1c">*</span></label>
+                    <div style="display:flex; align-items:center; gap:.5rem;">
+                        <button type="button" class="btn btn-secondary"
+                                style="width:38px; height:38px; padding:0; justify-content:center;"
+                                onclick="stepEditItem(-1)">−</button>
+                        <input type="number" id="editItemCantidad" name="cantidad"
+                               class="form-control" min="1" max="999"
+                               style="text-align:center; font-weight:800; font-size:1rem; width:80px;">
+                        <button type="button" class="btn btn-secondary"
+                                style="width:38px; height:38px; padding:0; justify-content:center;"
+                                onclick="stepEditItem(1)">+</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Nota para cocina</label>
+                    <input type="text" id="editItemNota" name="notaCocina"
+                           class="form-control" placeholder="Ej: Sin sal, muy picante…" maxlength="255">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary"
+                        onclick="cerrarModal('modalEditarItem')">Cancelar</button>
+                <button type="submit" class="btn btn-edit">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         style="width:14px;height:14px">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    Guardar cambios
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     MODAL: CONFIRMAR ANULAR ÍTEM
+══════════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalAnularItem">
+    <div class="modal modal-confirm-item">
+        <div class="modal-header">
+            <span class="modal-title">Anular ítem</span>
+            <button class="modal-close" onclick="cerrarModal('modalAnularItem')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:17px;height:17px">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+        <div style="padding:1.3rem 1.25rem .8rem; text-align:center;">
+            <div style="width:46px;height:46px;border-radius:50%;background:#fee2e2;
+                        display:flex;align-items:center;justify-content:center;margin:0 auto .8rem;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#991b1b" stroke-width="2"
+                     style="width:20px;height:20px">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="15" y1="9" x2="9" y2="15"/>
+                    <line x1="9" y1="9" x2="15" y2="15"/>
+                </svg>
+            </div>
+            <h3 style="font-size:.9rem;font-weight:700;margin-bottom:.35rem;">¿Anular este ítem?</h3>
+            <p style="font-size:.82rem;color:var(--text-sub);">
+                Se anulará <strong id="anularItemNombre"></strong> y el total del pedido se actualizará.
+            </p>
+        </div>
+        <form id="formAnularItem" method="post">
+            <input type="hidden" th:name="${_csrf?.parameterName}" th:value="${_csrf?.token}"/>
+            <input type="hidden" name="pedidoId" th:value="${pedido.id}">
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary"
+                        onclick="cerrarModal('modalAnularItem')">Cancelar</button>
+                <button type="submit" class="btn btn-delete btn-sm">
+                    Sí, anular ítem
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════════════════════════════════════════════ -->
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+    /* ── Modales ────────────────────────────────────────────────────────────── */
+    window.cerrarModal = function(id) {
+        document.getElementById(id).classList.remove('open');
+        if (id === 'modalAgregarItems') {
+            limpiarMiniCarrito();
+            document.querySelectorAll('.prod-row-m.sel').forEach(r => r.classList.remove('sel'));
+        }
+    };
+    document.querySelectorAll('.modal-overlay').forEach(ov => {
+        ov.addEventListener('click', e => { if (e.target === ov) cerrarModal(ov.id); });
+    });
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape')
+            document.querySelectorAll('.modal-overlay.open').forEach(m => cerrarModal(m.id));
+    });
+
+    /* ── Flash auto-ocultar ──────────────────────────────────────────────── */
+    const flash = document.querySelector('.alert-flash');
+    if (flash) {
+        setTimeout(() => {
+            flash.style.transition = 'opacity .4s';
+            flash.style.opacity = '0';
+            setTimeout(() => flash.remove(), 400);
+        }, 4500);
+    }
+
+    /* ── Botón Agregar ítems ─────────────────────────────────────────────── */
+    const btnAgregar = document.getElementById('btnAgregarItems');
+    if (btnAgregar) {
+        btnAgregar.addEventListener('click', () => {
+            document.getElementById('modalAgregarItems').classList.add('open');
+        });
+    }
+
+    /* ── Mini-carrito ───────────────────────────────────────────────────────── */
+    const miniCarrito = new Map();
+
+    function renderMiniCarrito() {
+        const empty  = document.getElementById('miniCarritoEmpty');
+        const items  = document.getElementById('miniCarritoItems');
+        const count  = document.getElementById('miniCarritoCount');
+        const submit = document.getElementById('btnAgregarSubmit');
+
+        if (miniCarrito.size === 0) {
+            empty.style.display = '';
+            items.style.display = 'none';
+            if (count)  count.textContent = '';
+            if (submit) submit.disabled = true;
+            return;
+        }
+        empty.style.display = 'none';
+        items.style.display = '';
+        if (count)  count.textContent = '(' + miniCarrito.size + ')';
+        if (submit) submit.disabled = false;
+
+        items.innerHTML = '';
+        miniCarrito.forEach((item, pid) => {
+            const sub = (item.precio * item.cantidad).toFixed(2);
+            const div = document.createElement('div');
+            div.className = 'mini-item';
+            div.dataset.pid = pid;
+            div.innerHTML = `
+                <div class="mi-nombre">${item.nombre}</div>
+                <input class="mi-nota" type="text" placeholder="Nota…"
+                       value="${item.nota || ''}" maxlength="255"
+                       oninput="miniActualizarNota(${pid}, this.value)">
+                <div class="mi-qty">
+                    <button type="button" class="mi-qty-btn" onclick="miniCambiarCant(${pid}, -1)">−</button>
+                    <span class="mi-qty-val">${item.cantidad}</span>
+                    <button type="button" class="mi-qty-btn" onclick="miniCambiarCant(${pid}, 1)">+</button>
+                </div>
+                <div class="mi-sub">S/ ${sub}</div>
+                <button type="button" class="mi-remove" onclick="miniQuitar(${pid})" title="Quitar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                         style="width:12px;height:12px">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>`;
+            items.appendChild(div);
+        });
+    }
+
+    window.miniCambiarCant = function(pid, d) {
+        const item = miniCarrito.get(pid);
+        if (!item) return;
+        item.cantidad = Math.max(1, item.cantidad + d);
+        miniCarrito.set(pid, item);
+        renderMiniCarrito();
+    };
+    window.miniActualizarNota = function(pid, nota) {
+        const item = miniCarrito.get(pid);
+        if (item) { item.nota = nota; miniCarrito.set(pid, item); }
+    };
+    window.miniQuitar = function(pid) {
+        miniCarrito.delete(pid);
+        const row = document.querySelector(`.prod-row-m[data-id="${pid}"]`);
+        if (row) row.classList.remove('sel');
+        renderMiniCarrito();
+    };
+    window.limpiarMiniCarrito = function() {
+        miniCarrito.clear();
+        document.querySelectorAll('.prod-row-m.sel').forEach(r => r.classList.remove('sel'));
+        renderMiniCarrito();
+    };
+
+    document.querySelectorAll('.prod-row-m').forEach(row => {
+        row.addEventListener('click', function () {
+            const pid    = parseInt(this.dataset.id);
+            const nombre = this.dataset.nombre;
+            const precio = parseFloat(this.dataset.precio);
+            if (miniCarrito.has(pid)) {
+                miniCarrito.delete(pid);
+                this.classList.remove('sel');
+            } else {
+                miniCarrito.set(pid, { id: pid, nombre, precio, cantidad: 1, nota: '' });
+                this.classList.add('sel');
+            }
+            renderMiniCarrito();
+        });
+    });
+
+    const formAgregar = document.getElementById('formAgregarItems');
+    if (formAgregar) {
+        formAgregar.addEventListener('submit', function () {
+            const container = document.getElementById('agregarItemsHidden');
+            container.innerHTML = '';
+            miniCarrito.forEach((item, pid) => {
+                const i1 = document.createElement('input');
+                i1.type = 'hidden'; i1.name = 'productoIds'; i1.value = pid;
+                const i2 = document.createElement('input');
+                i2.type = 'hidden'; i2.name = 'cantidades'; i2.value = item.cantidad;
+                const i3 = document.createElement('input');
+                i3.type = 'hidden'; i3.name = 'notas'; i3.value = item.nota || '';
+                container.appendChild(i1);
+                container.appendChild(i2);
+                container.appendChild(i3);
+            });
+        });
+    }
+
+    /* ── Búsqueda en modal agregar ───────────────────────────────────────── */
+    let catActivaM = 'todos';
+    function filtrarProductosM() {
+        const txt = document.getElementById('buscarProductoM').value.toLowerCase().trim();
+        let visible = 0;
+        document.querySelectorAll('.prod-row-m').forEach(row => {
+            const nombre   = row.dataset.nombre.toLowerCase();
+            const cat      = row.dataset.cat;
+            const matchTxt = txt === '' || nombre.includes(txt);
+            const matchCat = catActivaM === 'todos' || cat === catActivaM;
+            if (matchTxt && matchCat) { row.style.display = ''; visible++; }
+            else row.style.display = 'none';
+        });
+        const vacio = document.getElementById('prodsListMVacio');
+        if (vacio) vacio.style.display = visible === 0 ? '' : 'none';
+    }
+    document.getElementById('buscarProductoM').addEventListener('input', filtrarProductosM);
+    document.querySelectorAll('.cat-tab-m').forEach(tab => {
+        tab.addEventListener('click', function () {
+            document.querySelectorAll('.cat-tab-m').forEach(t => t.classList.remove('active'));
+            this.classList.add('active');
+            catActivaM = this.dataset.cat;
+            filtrarProductosM();
+        });
+    });
+
+    /* ── Botones editar ítem ─────────────────────────────────────────────── */
+    document.querySelectorAll('.btn-editar-item').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const d = this.dataset;
+            document.getElementById('editItemNombre').textContent = d.nombre;
+            document.getElementById('editItemCantidad').value     = d.cantidad;
+            document.getElementById('editItemNota').value =
+                (d.nota !== 'null' && d.nota) ? d.nota : '';
+            document.getElementById('editItemPedidoId').value     = d.pedidoid;
+            document.getElementById('formEditarItem').action =
+                '/pedidos/items/' + d.itemid + '/editar';
+            document.getElementById('modalEditarItem').classList.add('open');
+        });
+    });
+
+    window.stepEditItem = function(delta) {
+        const inp = document.getElementById('editItemCantidad');
+        let val = parseInt(inp.value) + delta;
+        val = Math.max(1, Math.min(999, val));
+        inp.value = val;
+    };
+
+    /* ── Botones anular ítem ─────────────────────────────────────────────── */
+    document.querySelectorAll('.btn-anular-item').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const d = this.dataset;
+            document.getElementById('anularItemNombre').textContent = d.nombre;
+            document.getElementById('formAnularItem').action =
+                '/pedidos/items/' + d.itemid + '/anular';
+            document.getElementById('modalAnularItem').classList.add('open');
+        });
+    });
+});
+</script>
+
+</main>
+</body>
+</html>

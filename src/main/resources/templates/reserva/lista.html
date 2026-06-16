@@ -1,0 +1,1605 @@
+<!DOCTYPE html>
+<html lang="es"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      th:replace="~{layout :: layout('Reservas', ~{::main})}">
+<body>
+<main>
+
+<style>
+/* ══════════════════════════════════════════════════════════════
+   VARIABLES LOCALES
+══════════════════════════════════════════════════════════════ */
+:root {
+    --res-pendiente-bg:   #eff6ff; --res-pendiente-color:  #1d4ed8;
+    --res-confirmada-bg:  #f0fdf4; --res-confirmada-color: #15803d;
+    --res-activa-bg:      #fefce8; --res-activa-color:     #854d0e;
+    --res-completada-bg:  #f1f5f9; --res-completada-color: #475569;
+    --res-cancelada-bg:   #fff1f2; --res-cancelada-color:  #9f1239;
+    --res-noshow-bg:      #fdf4ff; --res-noshow-color:     #7e22ce;
+}
+
+/* ── Stats bar ─────────────────────────────────────────────── */
+.stats-reservas {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: .7rem;
+    margin-bottom: 1.25rem;
+}
+.stat-chip {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: .85rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: .7rem;
+    box-shadow: var(--shadow);
+    transition: box-shadow .2s;
+}
+.stat-chip:hover { box-shadow: var(--shadow-md); }
+
+.stat-icon {
+    width: 38px; height: 38px;
+    border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+}
+.stat-icon svg { width: 18px; height: 18px; }
+.si-blue   { background: #dbeafe; color: #1d4ed8; }
+.si-green  { background: #dcfce7; color: #15803d; }
+.si-yellow { background: #fef9c3; color: #854d0e; }
+.si-amber  { background: #fef3c7; color: #b45309; }
+.si-slate  { background: #f1f5f9; color: #475569; }
+.si-purple { background: #f5f3ff; color: #7e22ce; }
+
+.stat-value { font-size: 1.35rem; font-weight: 800; line-height: 1; color: var(--text-main); }
+.stat-label { font-size: .69rem; color: var(--text-sub); margin-top: 2px; font-weight: 500; }
+
+/* ── Toolbar ────────────────────────────────────────────────── */
+.toolbar {
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+    flex-wrap: wrap;
+}
+.search-wrap {
+    position: relative;
+    flex: 1;
+    min-width: 200px;
+    max-width: 280px;
+}
+.search-wrap svg {
+    position: absolute; left: .7rem; top: 50%;
+    transform: translateY(-50%);
+    width: 14px; height: 14px;
+    color: var(--text-sub);
+    pointer-events: none;
+}
+.search-wrap input {
+    width: 100%;
+    padding: .48rem .8rem .48rem 2.1rem;
+    font-size: .84rem;
+    font-family: inherit;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text-main);
+    outline: none;
+    transition: border-color .2s, box-shadow .2s;
+}
+.search-wrap input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(29,53,87,.07);
+}
+.filter-select {
+    padding: .46rem .75rem;
+    font-size: .82rem;
+    font-family: inherit;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text-main);
+    cursor: pointer;
+    outline: none;
+    min-width: 155px;
+    transition: border-color .2s;
+}
+.filter-select:focus { border-color: var(--primary); }
+
+/* ── Estado badges ──────────────────────────────────────────── */
+.badge-res {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    padding: .22rem .65rem;
+    border-radius: 20px;
+    font-size: .71rem;
+    font-weight: 700;
+    letter-spacing: .03em;
+    white-space: nowrap;
+}
+.badge-res .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+}
+.br-pendiente  { background: var(--res-pendiente-bg);  color: var(--res-pendiente-color);  }
+.br-confirmada { background: var(--res-confirmada-bg); color: var(--res-confirmada-color); }
+.br-activa     { background: var(--res-activa-bg);     color: var(--res-activa-color);     }
+.br-completada { background: var(--res-completada-bg); color: var(--res-completada-color); }
+.br-cancelada  { background: var(--res-cancelada-bg);  color: var(--res-cancelada-color);  }
+.br-noshow     { background: var(--res-noshow-bg);     color: var(--res-noshow-color);     }
+
+.dot-pendiente  { background: var(--res-pendiente-color);  }
+.dot-confirmada { background: var(--res-confirmada-color); }
+.dot-activa     { background: var(--res-activa-color);     }
+.dot-completada { background: var(--res-completada-color); }
+.dot-cancelada  { background: var(--res-cancelada-color);  }
+.dot-noshow     { background: var(--res-noshow-color);     }
+
+/* ── Tabla: celda cliente ───────────────────────────────────── */
+.cliente-cell { display: flex; align-items: center; gap: .65rem; }
+.cliente-avatar {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #1d3557 0%, #023e8a 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: .78rem; font-weight: 800; color: #fff;
+    flex-shrink: 0; letter-spacing: .02em;
+}
+.cliente-nombre { font-weight: 600; font-size: .88rem; color: var(--text-main); }
+.cliente-tel    { font-size: .72rem; color: var(--text-sub); margin-top: 1px; }
+
+/* Mesa pill */
+.mesa-pill {
+    display: inline-flex; align-items: center; gap: .3rem;
+    padding: .2rem .55rem;
+    background: #e0e7ff; color: #3730a3;
+    border-radius: 20px;
+    font-size: .71rem; font-weight: 700;
+    white-space: nowrap;
+}
+
+/* Fecha cell */
+.fecha-cell { line-height: 1.4; }
+.fecha-main { font-size: .84rem; font-weight: 600; color: var(--text-main); }
+.fecha-hora { font-size: .73rem; color: var(--text-sub); }
+
+/* Personas badge */
+.personas-badge {
+    display: inline-flex; align-items: center; gap: .25rem;
+    font-size: .78rem; font-weight: 600; color: var(--text-sub);
+}
+.personas-badge svg { width: 13px; height: 13px; }
+
+/* Actions */
+.actions-cell { display: flex; gap: .3rem; align-items: center; justify-content: center; }
+
+/* ── Countdown chip ─────────────────────────────────────────── */
+.countdown-chip {
+    display: inline-flex; align-items: center; gap: .3rem;
+    padding: .18rem .5rem;
+    border-radius: 6px;
+    font-size: .68rem; font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+.cc-ok      { background: #dcfce7; color: #15803d; }
+.cc-warning { background: #fef9c3; color: #854d0e; }
+.cc-danger  { background: #fee2e2; color: #b91c1c; }
+.cc-expired { background: #f5f3ff; color: #7e22ce; }
+
+/* ── Empty state ────────────────────────────────────────────── */
+.empty-state {
+    text-align: center;
+    padding: 3.5rem 1rem;
+    color: var(--text-sub);
+}
+.empty-state svg { width: 48px; height: 48px; opacity: .2; margin-bottom: .75rem; }
+.empty-state p { font-size: .88rem; }
+
+.pag-info {
+    font-size: .77rem; color: var(--text-sub);
+    text-align: center; padding-top: .3rem;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   MODALES
+══════════════════════════════════════════════════════════════ */
+.form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1rem; }
+.form-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0 .9rem; }
+.form-grid-2 .full,
+.form-grid-3 .full { grid-column: 1 / -1; }
+
+.form-section-label {
+    font-size: .67rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .09em;
+    color: var(--text-sub);
+    margin: 1rem 0 .55rem;
+    padding-bottom: .3rem;
+    border-bottom: 1px solid var(--border);
+}
+.form-section-label:first-child { margin-top: 0; }
+
+/* Input groups con icono */
+.input-icon-wrap { position: relative; }
+.input-icon-wrap svg {
+    position: absolute; left: .7rem; top: 50%;
+    transform: translateY(-50%);
+    width: 15px; height: 15px;
+    color: var(--text-sub); pointer-events: none;
+}
+.input-icon-wrap input,
+.input-icon-wrap select {
+    padding-left: 2.2rem;
+}
+
+/* Stepper personas */
+.stepper {
+    display: flex;
+    align-items: center;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fafafa;
+    height: 38px;
+}
+.stepper button {
+    width: 36px;
+    border: none;
+    background: transparent;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--primary);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background .15s;
+    height: 100%;
+}
+.stepper button:hover { background: #e0e7ff; }
+.stepper input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    text-align: center;
+    font-size: .92rem;
+    font-weight: 700;
+    color: var(--text-main);
+    font-family: inherit;
+    outline: none;
+    width: 50px;
+    min-width: 0;
+}
+
+/* Tolerancia selector */
+.tolerancia-opts {
+    display: flex;
+    gap: .4rem;
+    flex-wrap: wrap;
+}
+.tol-btn {
+    padding: .3rem .7rem;
+    font-size: .78rem; font-weight: 600;
+    font-family: inherit;
+    border: 1.5px solid var(--border);
+    border-radius: 7px;
+    background: #fafafa;
+    color: var(--text-sub);
+    cursor: pointer;
+    transition: all .15s;
+}
+.tol-btn.active,
+.tol-btn:hover {
+    border-color: var(--primary);
+    background: #e0e7ff;
+    color: #3730a3;
+}
+
+/* Input nombre con feedback inline */
+.nombre-wrap { position: relative; }
+.nombre-status {
+    position: absolute;
+    right: .65rem; top: 50%;
+    transform: translateY(-50%);
+    font-size: .72rem; font-weight: 600;
+    display: none;
+}
+.nombre-status.ok    { color: #15803d; display: flex; align-items: center; gap: .2rem; }
+.nombre-status.taken { color: #b91c1c; display: flex; align-items: center; gap: .2rem; }
+
+/* Confirm modal */
+.confirm-modal { max-width: 400px; }
+.confirm-icon {
+    width: 50px; height: 50px; border-radius: 50%;
+    background: #fee2e2;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto .9rem;
+}
+.confirm-icon svg { width: 22px; height: 22px; color: #991b1b; }
+.confirm-body { text-align: center; padding: 1.4rem 1.25rem .9rem; }
+.confirm-body h3 { font-size: .93rem; font-weight: 700; margin-bottom: .4rem; }
+.confirm-body p  { font-size: .83rem; color: var(--text-sub); }
+
+.modal-body {
+    min-height: 0;
+}
+/* El form dentro del modal debe participar en el flex */
+.modal > form {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* Modal ver detalle */
+.modal-ver { max-width: 540px; }
+.detalle-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .85rem 1.25rem;
+    margin-bottom: 1rem;
+}
+.detalle-item {
+    display: flex;
+    flex-direction: column;
+    gap: .2rem;
+}
+.detalle-label {
+    font-size: .67rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .08em;
+    color: var(--text-sub); margin-bottom: .25rem;
+}
+.detalle-value {
+    font-size: .88rem; font-weight: 600; color: var(--text-main);
+    line-height: 1.35;
+}
+.detalle-value.mono {
+    font-family: 'Courier New', monospace;
+    font-size: .82rem;
+}
+.detalle-full { grid-column: 1 / -1; }
+.obs-box {
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: .6rem .8rem;
+    font-size: .84rem;
+    color: var(--text-main);
+    min-height: 52px;
+    line-height: 1.5;
+}
+.header-cliente-ver {
+    display: flex; align-items: center; gap: 1rem;
+    padding: 1.1rem 1.25rem;
+    background: linear-gradient(135deg, #1d3557 0%, #023e8a 100%);
+    border-radius: 0 0 12px 12px;
+    margin: -1.25rem -1.25rem 1rem;
+}
+.hcv-avatar {
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.18);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.2rem; font-weight: 900; color: #fff;
+    flex-shrink: 0;
+}
+.hcv-info .hcv-nombre { font-size: 1.05rem; font-weight: 700; color: #fff; }
+.hcv-info .hcv-tel    { font-size: .78rem; color: rgba(255,255,255,.7); margin-top: 2px; }
+
+/* Timeline estados */
+.estado-timeline {
+    display: flex;
+    align-items: center;
+    gap: .3rem;
+    flex-wrap: wrap;
+    padding: .5rem 0;
+}
+.et-step {
+    display: flex; align-items: center; gap: .3rem;
+    font-size: .72rem; font-weight: 600;
+    padding: .25rem .6rem;
+    border-radius: 20px;
+    border: 1.5px solid transparent;
+}
+.et-step.done    { opacity: .5; }
+.et-step.current { border-color: currentColor; font-weight: 800; }
+.et-arrow { color: var(--text-sub); font-size: .8rem; }
+
+/* Tooltips simples */
+[data-tip] { position: relative; cursor: help; }
+
+/* Botón acción rápida estado */
+.btn-estado-rapido {
+    display: inline-flex; align-items: center; gap: .3rem;
+    padding: .28rem .6rem;
+    font-size: .72rem; font-weight: 600;
+    font-family: inherit;
+    border-radius: 6px;
+    border: 1.5px solid transparent;
+    cursor: pointer;
+    transition: all .15s;
+    white-space: nowrap;
+}
+.ber-confirmar {
+    background: #f0fdf4; color: #15803d;
+    border-color: #bbf7d0;
+}
+.ber-confirmar:hover { background: #dcfce7; }
+.ber-activar {
+    background: #fefce8; color: #854d0e;
+    border-color: #fde68a;
+}
+.ber-activar:hover { background: #fef9c3; }
+.ber-completar {
+    background: #f1f5f9; color: #475569;
+    border-color: #e2e8f0;
+}
+.ber-completar:hover { background: #e2e8f0; }
+.ber-cancelar {
+    background: #fff1f2; color: #9f1239;
+    border-color: #fecdd3;
+}
+.ber-cancelar:hover { background: #fce7f3; }
+</style>
+
+<!-- ══ FLASH ════════════════════════════════════════════════════════════════ -->
+<div th:if="${flashMensaje != null}"
+     th:classappend="${flashTipo == 'success' ? 'success' : 'error'}"
+     class="alert-flash">
+    <svg th:if="${flashTipo == 'success'}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" style="width:15px;height:15px;flex-shrink:0">
+        <polyline points="20 6 9 17 4 12"/>
+    </svg>
+    <svg th:unless="${flashTipo == 'success'}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" style="width:15px;height:15px;flex-shrink:0">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    <span th:text="${flashMensaje}"></span>
+</div>
+
+<!-- ══ STATS ═════════════════════════════════════════════════════════════════ -->
+<div class="stats-reservas">
+    <div class="stat-chip">
+        <div class="stat-icon si-blue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="4" width="18" height="18" rx="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+        </div>
+        <div>
+            <div class="stat-value" th:text="${totalReservas}">0</div>
+            <div class="stat-label">Total</div>
+        </div>
+    </div>
+    <div class="stat-chip">
+        <div class="stat-icon si-yellow">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+            </svg>
+        </div>
+        <div>
+            <div class="stat-value" th:text="${pendientes}">0</div>
+            <div class="stat-label">Pendientes</div>
+        </div>
+    </div>
+    <div class="stat-chip">
+        <div class="stat-icon si-green">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/>
+            </svg>
+        </div>
+        <div>
+            <div class="stat-value" th:text="${confirmadas}">0</div>
+            <div class="stat-label">Confirmadas</div>
+        </div>
+    </div>
+    <div class="stat-chip">
+        <div class="stat-icon si-amber">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+        </div>
+        <div>
+            <div class="stat-value" th:text="${activas}">0</div>
+            <div class="stat-label">Activas</div>
+        </div>
+    </div>
+    <div class="stat-chip">
+        <div class="stat-icon si-slate">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="20 6 9 17 4 12"/>
+            </svg>
+        </div>
+        <div>
+            <div class="stat-value" th:text="${completadas}">0</div>
+            <div class="stat-label">Completadas</div>
+        </div>
+    </div>
+    <div class="stat-chip">
+        <div class="stat-icon si-purple">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+            </svg>
+        </div>
+        <div>
+            <div class="stat-value" th:text="${noShow}">0</div>
+            <div class="stat-label">No Show</div>
+        </div>
+    </div>
+</div>
+
+<!-- ══ CARD PRINCIPAL ════════════════════════════════════════════════════════ -->
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 style="width:15px;height:15px;vertical-align:middle;margin-right:.35rem">
+                <rect x="3" y="4" width="18" height="18" rx="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/><circle cx="12" cy="16" r="2"/>
+            </svg>
+            Gestión de Reservas
+        </span>
+
+        <div class="toolbar" style="flex:1; justify-content:flex-end;">
+            <form method="get" action="/reservas" style="display:contents;">
+                <div class="search-wrap">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"/>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    <input type="text" name="busqueda"
+                           th:value="${busqueda}"
+                           placeholder="Nombre del cliente…"
+                           autocomplete="off">
+                </div>
+                <select name="estado" class="filter-select" onchange="this.form.submit()">
+                    <option value="">Todos los estados</option>
+                    <option value="PENDIENTE"  th:selected="${estado == 'PENDIENTE'}">Pendiente</option>
+                    <option value="CONFIRMADA" th:selected="${estado == 'CONFIRMADA'}">Confirmada</option>
+                    <option value="ACTIVA"     th:selected="${estado == 'ACTIVA'}">Activa</option>
+                    <option value="COMPLETADA" th:selected="${estado == 'COMPLETADA'}">Completada</option>
+                    <option value="CANCELADA"  th:selected="${estado == 'CANCELADA'}">Cancelada</option>
+                    <option value="NO_SHOW"    th:selected="${estado == 'NO_SHOW'}">No Show</option>
+                </select>
+                <button type="submit" class="btn btn-secondary btn-sm">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         style="width:13px;height:13px">
+                        <circle cx="11" cy="11" r="8"/>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    Buscar
+                </button>
+            </form>
+
+            <button class="btn btn-create" id="btnNuevaReserva">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:14px;height:14px">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Nueva reserva
+            </button>
+        </div>
+    </div>
+
+    <!-- TABLA -->
+    <div class="table-responsive">
+        <table>
+            <thead>
+                <tr>
+                    <th style="width:38px">#</th>
+                    <th>Cliente</th>
+                    <th>Mesa</th>
+                    <th>Fecha y hora</th>
+                    <th>Personas</th>
+                    <th>Estado</th>
+                    <th>Tiempo</th>
+                    <th style="width:180px; text-align:center;">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr th:if="${#lists.isEmpty(reservas)}">
+                    <td colspan="8">
+                        <div class="empty-state">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <rect x="3" y="4" width="18" height="18" rx="2"/>
+                                <line x1="16" y1="2" x2="16" y2="6"/>
+                                <line x1="8" y1="2" x2="8" y2="6"/>
+                                <line x1="3" y1="10" x2="21" y2="10"/>
+                            </svg>
+                            <p>No se encontraron reservas</p>
+                        </div>
+                    </td>
+                </tr>
+
+                <tr th:each="r, stat : ${reservas}">
+                    <td style="color:var(--text-sub); font-size:.76rem;"
+                        th:text="${page.number * page.size + stat.index + 1}">1</td>
+
+                    <!-- Cliente -->
+                    <td>
+                        <div class="cliente-cell">
+                            <div class="cliente-avatar"
+                                 th:text="${#strings.substring(r.nombreCliente, 0, 2).toUpperCase()}">AB</div>
+                            <div>
+                                <div class="cliente-nombre" th:text="${r.nombreCliente}">Nombre</div>
+                                <div class="cliente-tel"
+                                     th:text="${r.telefonoCliente != null ? r.telefonoCliente : '—'}">—</div>
+                            </div>
+                        </div>
+                    </td>
+
+                    <!-- Mesa -->
+                    <td>
+                        <span class="mesa-pill">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                 style="width:11px;height:11px">
+                                <path d="M3 6h18M3 12h18M3 18h18"/>
+                            </svg>
+                            <span th:text="${r.mesa.area.nombre + ' · ' + r.mesa.numero}">A·1</span>
+                        </span>
+                    </td>
+
+                    <!-- Fecha -->
+                    <td>
+                        <div class="fecha-cell">
+                            <div class="fecha-main"
+                                 th:text="${#temporals.format(r.fechaReserva, 'dd/MM/yyyy')}">01/01/2025</div>
+                            <div class="fecha-hora"
+                                 th:text="${#temporals.format(r.fechaReserva, 'HH:mm') + ' · ' + r.toleranciaMinutos + ' min tol.'}">12:00</div>
+                        </div>
+                    </td>
+
+                    <!-- Personas -->
+                    <td>
+                        <span class="personas-badge">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                                <circle cx="9" cy="7" r="4"/>
+                            </svg>
+                            <span th:text="${r.personas}">2</span>
+                        </span>
+                    </td>
+
+                    <!-- Estado -->
+                    <td>
+                        <span class="badge-res"
+                              th:classappend="${r.estado == 'PENDIENTE'  ? 'br-pendiente'  :
+                                               r.estado == 'CONFIRMADA' ? 'br-confirmada' :
+                                               r.estado == 'ACTIVA'     ? 'br-activa'     :
+                                               r.estado == 'COMPLETADA' ? 'br-completada' :
+                                               r.estado == 'CANCELADA'  ? 'br-cancelada'  :
+                                                                           'br-noshow'}">
+                            <span class="dot"
+                                  th:classappend="${r.estado == 'PENDIENTE'  ? 'dot-pendiente'  :
+                                                   r.estado == 'CONFIRMADA' ? 'dot-confirmada' :
+                                                   r.estado == 'ACTIVA'     ? 'dot-activa'     :
+                                                   r.estado == 'COMPLETADA' ? 'dot-completada' :
+                                                   r.estado == 'CANCELADA'  ? 'dot-cancelada'  :
+                                                                               'dot-noshow'}">
+                            </span>
+                            <span th:text="${r.estado}">ESTADO</span>
+                        </span>
+                    </td>
+
+                    <!-- Countdown (JS lo rellena) -->
+                    <td>
+                        <span class="countdown-chip"
+                              th:if="${r.estado == 'PENDIENTE' or r.estado == 'CONFIRMADA'}"
+                              th:data-fecha="${r.fechaReserva}"
+                              th:data-tol="${r.toleranciaMinutos}"
+                              data-countdown="true">
+                            …
+                        </span>
+                        <span th:unless="${r.estado == 'PENDIENTE' or r.estado == 'CONFIRMADA'}"
+                              style="color:var(--text-sub);font-size:.75rem;">—</span>
+                    </td>
+
+                    <!-- Acciones -->
+                    <td>
+                        <div class="actions-cell">
+                            <!-- Ver detalle -->
+                            <button class="btn btn-secondary btn-sm btn-ver-reserva"
+                                    th:data-id="${r.id}"
+                                    th:data-nombre="${r.nombreCliente}"
+                                    th:data-tel="${r.telefonoCliente}"
+                                    th:data-mesa="${r.mesa.area.nombre + ' · Mesa ' + r.mesa.numero}"
+                                    th:data-fecha="${#temporals.format(r.fechaReserva, 'dd/MM/yyyy HH:mm')}"
+                                    th:data-personas="${r.personas}"
+                                    th:data-tol="${r.toleranciaMinutos}"
+                                    th:data-estado="${r.estado}"
+                                    th:data-obs="${r.observaciones}"
+                                    th:data-creado="${#temporals.format(r.creadoEn, 'dd/MM/yyyy HH:mm')}"
+                                    title="Ver detalle">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                     style="width:13px;height:13px">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                            </button>
+
+                            <!-- Editar -->
+                            <button class="btn btn-edit btn-sm btn-editar-reserva"
+                                    th:data-id="${r.id}"
+                                    th:data-mesaid="${r.mesa.id}"
+                                    th:data-nombre="${r.nombreCliente}"
+                                    th:data-tel="${r.telefonoCliente}"
+                                    th:data-fecha="${#temporals.format(r.fechaReserva, 'yyyy-MM-dd')}"
+                                    th:data-hora="${#temporals.format(r.fechaReserva, 'HH:mm')}"
+                                    th:data-tol="${r.toleranciaMinutos}"
+                                    th:data-personas="${r.personas}"
+                                    th:data-obs="${r.observaciones}"
+                                    th:data-estado="${r.estado}"
+                                    title="Editar">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                     style="width:13px;height:13px">
+                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                </svg>
+                                Editar
+                            </button>
+
+                            <!-- Eliminar -->
+                            <button class="btn btn-delete btn-sm btn-eliminar-reserva"
+                                    th:data-id="${r.id}"
+                                    th:data-nombre="${r.nombreCliente}"
+                                    title="Eliminar">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                     style="width:13px;height:13px">
+                                    <polyline points="3 6 5 6 21 6"/>
+                                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                                    <path d="M10 11v6"/><path d="M14 11v6"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- PAGINACIÓN -->
+    <div th:if="${page.totalPages > 1}"
+         style="padding:.75rem 1.25rem; border-top:1px solid var(--border);">
+        <div class="pagination">
+            <a th:href="@{/reservas(pagina=${page.number - 1}, busqueda=${busqueda}, estado=${estado})}"
+               th:classappend="${page.first ? 'disabled' : ''}"
+               class="page-link">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:12px;height:12px"><polyline points="15 18 9 12 15 6"/></svg>
+            </a>
+            <th:block th:each="i : ${#numbers.sequence(0, page.totalPages - 1)}">
+                <a th:href="@{/reservas(pagina=${i}, busqueda=${busqueda}, estado=${estado})}"
+                   th:text="${i + 1}"
+                   th:classappend="${i == page.number ? 'active' : ''}"
+                   class="page-link">1</a>
+            </th:block>
+            <a th:href="@{/reservas(pagina=${page.number + 1}, busqueda=${busqueda}, estado=${estado})}"
+               th:classappend="${page.last ? 'disabled' : ''}"
+               class="page-link">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:12px;height:12px"><polyline points="9 18 15 12 9 6"/></svg>
+            </a>
+        </div>
+        <p class="pag-info">
+            Mostrando
+            <strong th:text="${page.number * page.size + 1}">1</strong>–<strong
+               th:text="${page.number * page.size + #lists.size(reservas)}">10</strong>
+            de <strong th:text="${page.totalElements}">0</strong> reservas
+        </p>
+    </div>
+</div><!-- /card -->
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     MODAL: CREAR RESERVA
+══════════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalCrear">
+    <div class="modal" style="max-width:560px;">
+        <div class="modal-header">
+            <span class="modal-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:15px;height:15px;vertical-align:middle;margin-right:.35rem">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Nueva reserva
+            </span>
+            <button class="modal-close" onclick="cerrarModal('modalCrear')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:17px;height:17px">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+
+        <form th:action="@{/reservas/crear}" method="post" id="formCrear" novalidate>
+            <input type="hidden" th:name="${_csrf?.parameterName}" th:value="${_csrf?.token}"/>
+            <div class="modal-body">
+
+                <!-- Cliente -->
+                <div class="form-section-label">Datos del cliente</div>
+                <div class="form-grid-2">
+                    <div class="form-group full">
+                        <label class="form-label" for="c_nombre">
+                            Nombre / Seudónimo <span style="color:#b91c1c">*</span>
+                        </label>
+                        <div class="nombre-wrap">
+                            <input type="text" id="c_nombre" name="nombreCliente"
+                                   class="form-control"
+                                   placeholder="ej. García o Mesa de Juan"
+                                   maxlength="150"
+                                   autocomplete="off"
+                                   style="padding-right:7rem;">
+                            <span class="nombre-status" id="c_nombre_status"></span>
+                        </div>
+                        <div class="invalid-feedback" id="c_nombre_err" style="display:none;">
+                            Este nombre ya está en uso. Usa un nombre diferente o seudónimo.
+                        </div>
+                    </div>
+                    <div class="form-group full">
+                        <label class="form-label" for="c_tel">Teléfono de contacto</label>
+                        <div class="input-icon-wrap">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.17 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.08 1h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.6a16 16 0 0 0 7.49 7.49l1.22-1.22a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                            </svg>
+                            <input type="tel" id="c_tel" name="telefonoCliente"
+                                   class="form-control"
+                                   placeholder="ej. 987654321"
+                                   maxlength="9"
+                                   pattern="[0-9]{9}"
+                                    inputmode="numeric"
+                                    oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Reserva -->
+                <div class="form-section-label">Detalles de la reserva</div>
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label class="form-label" for="c_mesa">
+                            Mesa <span style="color:#b91c1c">*</span>
+                        </label>
+                        <div class="input-icon-wrap">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 6h18M3 12h18M3 18h18"/>
+                            </svg>
+                            <select id="c_mesa" name="mesaId" class="form-select">
+                                <option value="">— Seleccionar —</option>
+                                <option th:each="m : ${mesasDisponibles}"
+                                        th:value="${m.id}"
+                                        th:text="${m.area.nombre + ' · Mesa ' + m.numero + (m.estado == 'LIBRE' ? '' : ' (reservada)')}">
+                                    Mesa
+                                </option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Personas <span style="color:#b91c1c">*</span></label>
+                        <div class="stepper">
+                            <button type="button" onclick="stepPersonas('c_personas', -1)">−</button>
+                            <input type="number" id="c_personas" name="personas"
+                                   value="2" min="1" max="50" readonly>
+                            <button type="button" onclick="stepPersonas('c_personas', 1)">+</button>
+                        </div>
+                        <input type="hidden" id="c_personas_h" name="personas" value="2">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="c_fecha">
+                            Fecha <span style="color:#b91c1c">*</span>
+                        </label>
+                        <input type="date" id="c_fecha" name="fechaDate"
+                               class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="c_hora">
+                            Hora <span style="color:#b91c1c">*</span>
+                        </label>
+                        <input type="time" id="c_hora" name="fechaHora"
+                               class="form-control">
+                    </div>
+                    <!-- Campo oculto fechaReserva combinado -->
+                    <input type="hidden" id="c_fechaReserva" name="fechaReserva">
+                </div>
+
+                <!-- Tolerancia -->
+                <div class="form-group">
+                    <label class="form-label">
+                        Tiempo de tolerancia
+                        <span style="font-weight:400; color:var(--text-sub); margin-left:.3rem;">(minutos)</span>
+                    </label>
+                    <div class="tolerancia-opts" id="c_tol_opts">
+                        <button type="button" class="tol-btn" data-val="10">10 min</button>
+                        <button type="button" class="tol-btn active" data-val="15">15 min</button>
+                        <button type="button" class="tol-btn" data-val="20">20 min</button>
+                        <button type="button" class="tol-btn" data-val="30">30 min</button>
+                        <button type="button" class="tol-btn" data-val="45">45 min</button>
+                        <button type="button" class="tol-btn" data-val="60">60 min</button>
+                    </div>
+                    <input type="hidden" id="c_tol" name="toleranciaMinutos" value="15">
+                </div>
+
+                <!-- Observaciones -->
+                <div class="form-section-label">Observaciones</div>
+                <div class="form-group">
+                    <textarea id="c_obs" name="observaciones"
+                              class="form-control"
+                              placeholder="Alergias, preferencias, ocasión especial…"
+                              rows="2" maxlength="500"></textarea>
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="cerrarModal('modalCrear')">
+                    Cancelar
+                </button>
+                <button type="submit" class="btn btn-create" id="c_submitBtn" disabled>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         style="width:14px;height:14px">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    Crear reserva
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     MODAL: EDITAR RESERVA
+══════════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalEditar">
+    <div class="modal" style="max-width:560px;">
+        <div class="modal-header">
+            <span class="modal-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:15px;height:15px;vertical-align:middle;margin-right:.35rem">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+                Editar reserva
+            </span>
+            <button class="modal-close" onclick="cerrarModal('modalEditar')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:17px;height:17px">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+
+        <form id="formEditar" method="post" novalidate>
+            <input type="hidden" th:name="${_csrf?.parameterName}" th:value="${_csrf?.token}"/>
+            <div class="modal-body">
+
+                <div class="form-section-label">Datos del cliente</div>
+                <div class="form-grid-2">
+                    <div class="form-group full">
+                        <label class="form-label" for="e_nombre">
+                            Nombre / Seudónimo <span style="color:#b91c1c">*</span>
+                        </label>
+                        <div class="nombre-wrap">
+                            <input type="text" id="e_nombre" name="nombreCliente"
+                                   class="form-control"
+                                   maxlength="150"
+                                   autocomplete="off"
+                                   style="padding-right:7rem;">
+                            <span class="nombre-status" id="e_nombre_status"></span>
+                        </div>
+                        <div class="invalid-feedback" id="e_nombre_err" style="display:none;">
+                            Este nombre ya está en uso.
+                        </div>
+                    </div>
+                    <div class="form-group full">
+                        <label class="form-label" for="e_tel">Teléfono de contacto</label>
+                        <div class="input-icon-wrap">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.17 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.08 1h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.6a16 16 0 0 0 7.49 7.49l1.22-1.22a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                            </svg>
+                            <input type="tel" id="e_tel" name="telefonoCliente"
+                                   class="form-control"
+                                   maxlength="9"
+                                   pattern="[0-9]{9}"
+                                    inputmode="numeric"
+                                    oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section-label">Detalles de la reserva</div>
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label class="form-label" for="e_mesa">Mesa</label>
+                        <div class="input-icon-wrap">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 6h18M3 12h18M3 18h18"/>
+                            </svg>
+                            <select id="e_mesa" name="mesaId" class="form-select">
+                                <option th:each="m : ${todasMesas}"
+                                        th:value="${m.id}"
+                                        th:text="${m.area.nombre + ' · Mesa ' + m.numero}">
+                                    Mesa
+                                </option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Personas</label>
+                        <div class="stepper">
+                            <button type="button" onclick="stepPersonas('e_personas', -1)">−</button>
+                            <input type="number" id="e_personas" name="personas"
+                                   value="2" min="1" max="50" readonly>
+                            <button type="button" onclick="stepPersonas('e_personas', 1)">+</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="e_fecha">Fecha</label>
+                        <input type="date" id="e_fecha" name="fechaDate" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="e_hora">Hora</label>
+                        <input type="time" id="e_hora" name="fechaHora" class="form-control">
+                    </div>
+                    <input type="hidden" id="e_fechaReserva" name="fechaReserva">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Tolerancia (minutos)</label>
+                    <div class="tolerancia-opts" id="e_tol_opts">
+                        <button type="button" class="tol-btn" data-val="10">10 min</button>
+                        <button type="button" class="tol-btn" data-val="15">15 min</button>
+                        <button type="button" class="tol-btn" data-val="20">20 min</button>
+                        <button type="button" class="tol-btn" data-val="30">30 min</button>
+                        <button type="button" class="tol-btn" data-val="45">45 min</button>
+                        <button type="button" class="tol-btn" data-val="60">60 min</button>
+                    </div>
+                    <input type="hidden" id="e_tol" name="toleranciaMinutos" value="15">
+                </div>
+
+                <div class="form-section-label">Estado</div>
+                <div class="form-group">
+                    <select id="e_estado" name="estado" class="form-select">
+                        <option value="PENDIENTE">⏳ Pendiente</option>
+                        <option value="CONFIRMADA">✅ Confirmada</option>
+                        <option value="ACTIVA">🟡 Activa — cliente llegó</option>
+                        <option value="COMPLETADA">☑️ Completada</option>
+                        <option value="CANCELADA">❌ Cancelada</option>
+                        <option value="NO_SHOW">🚫 No Show</option>
+                    </select>
+                </div>
+
+                <div class="form-section-label">Observaciones</div>
+                <div class="form-group">
+                    <textarea id="e_obs" name="observaciones"
+                              class="form-control" rows="2" maxlength="500"
+                              placeholder="Notas adicionales…"></textarea>
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="cerrarModal('modalEditar')">
+                    Cancelar
+                </button>
+                <button type="submit" class="btn btn-edit">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         style="width:14px;height:14px">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    Guardar cambios
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     MODAL: CONFIRMAR ELIMINAR
+══════════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalEliminar">
+    <div class="modal confirm-modal">
+        <div class="modal-header">
+            <span class="modal-title">Confirmar eliminación</span>
+            <button class="modal-close" onclick="cerrarModal('modalEliminar')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:17px;height:17px">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+        <div class="confirm-body">
+            <div class="confirm-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                    <path d="M10 11v6"/><path d="M14 11v6"/>
+                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                </svg>
+            </div>
+            <h3>¿Eliminar esta reserva?</h3>
+            <p>La reserva de <strong id="eliminarNombreCliente"></strong> será eliminada
+               permanentemente y la mesa quedará libre si no tiene otros pedidos activos.</p>
+        </div>
+        <form id="formEliminar" method="post">
+            <input type="hidden" th:name="${_csrf?.parameterName}" th:value="${_csrf?.token}"/>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="cerrarModal('modalEliminar')">
+                    Cancelar
+                </button>
+                <button type="submit" class="btn btn-delete">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         style="width:14px;height:14px">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                    </svg>
+                    Sí, eliminar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     MODAL: VER DETALLE RESERVA
+══════════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalVer">
+    <div class="modal modal-ver">
+        <div class="modal-header">
+            <span class="modal-title">Detalle de reserva</span>
+            <button class="modal-close" onclick="cerrarModal('modalVer')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:17px;height:17px">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <!-- Header cliente -->
+            <div class="header-cliente-ver">
+                <div class="hcv-avatar" id="ver_avatar">AB</div>
+                <div class="hcv-info">
+                    <div class="hcv-nombre" id="ver_nombre">—</div>
+                    <div class="hcv-tel"    id="ver_tel">—</div>
+                </div>
+                <div style="margin-left:auto;">
+                    <span class="badge-res" id="ver_badge_estado"></span>
+                </div>
+            </div>
+
+            <div class="detalle-grid">
+                <div class="detalle-item">
+                    <div class="detalle-label">Mesa</div>
+                    <div class="detalle-value" id="ver_mesa">—</div>
+                </div>
+                <div class="detalle-item">
+                    <div class="detalle-label">Personas</div>
+                    <div class="detalle-value" id="ver_personas">—</div>
+                </div>
+                <div class="detalle-item">
+                    <div class="detalle-label">Fecha y hora</div>
+                    <div class="detalle-value" id="ver_fecha">—</div>
+                </div>
+                <div class="detalle-item">
+                    <div class="detalle-label">Tolerancia</div>
+                    <div class="detalle-value" id="ver_tol">—</div>
+                </div>
+                <div class="detalle-item detalle-full">
+                    <div class="detalle-label">Registrado el</div>
+                    <div class="detalle-value" id="ver_creado">—</div>
+                </div>
+                <div class="detalle-item detalle-full">
+                    <div class="detalle-label">Observaciones</div>
+                    <div class="obs-box" id="ver_obs">—</div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="cerrarModal('modalVer')">
+                Cerrar
+            </button>
+        </div>
+    </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════════════════════════════════════════════ -->
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+    /* ── Modales ────────────────────────────────────────────────────────────── */
+    function abrirModal(id)  { document.getElementById(id).classList.add('open'); }
+    function cerrarModal(id) {
+        document.getElementById(id).classList.remove('open');
+        if (id === 'modalCrear')  limpiarCrear();
+        if (id === 'modalEditar') limpiarEditar();
+    }
+    window.cerrarModal = cerrarModal;
+
+    /* Cerrar con overlay click o Escape */
+    document.querySelectorAll('.modal-overlay').forEach(ov => {
+        ov.addEventListener('click', e => {
+            if (e.target === ov) cerrarModal(ov.id);
+        });
+    });
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape')
+            document.querySelectorAll('.modal-overlay.open')
+                    .forEach(m => cerrarModal(m.id));
+    });
+
+    /* ── Flash auto-ocultar ─────────────────────────────────────────────────── */
+    const flash = document.querySelector('.alert-flash');
+    if (flash) {
+        setTimeout(() => {
+            flash.style.transition = 'opacity .4s';
+            flash.style.opacity = '0';
+            setTimeout(() => flash.remove(), 400);
+        }, 4500);
+    }
+
+    /* ── Stepper personas ───────────────────────────────────────────────────── */
+    window.stepPersonas = function(inputId, delta) {
+        const inp = document.getElementById(inputId);
+        if (!inp) return;
+        let val = parseInt(inp.value) + delta;
+        val = Math.max(1, Math.min(50, val));
+        inp.value = val;
+        // Sync hidden
+        const h = document.getElementById(inputId + '_h');
+        if (h) h.value = val;
+    };
+
+    /* ── Tolerancia buttons ─────────────────────────────────────────────────── */
+    function initTolBtns(wrapId, hiddenId) {
+        const wrap   = document.getElementById(wrapId);
+        const hidden = document.getElementById(hiddenId);
+        if (!wrap || !hidden) return;
+        wrap.querySelectorAll('.tol-btn').forEach(btn => {
+            btn.addEventListener('click', function () {
+                wrap.querySelectorAll('.tol-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                hidden.value = this.dataset.val;
+            });
+        });
+    }
+    initTolBtns('c_tol_opts', 'c_tol');
+    initTolBtns('e_tol_opts', 'e_tol');
+
+    /* ── Combinar fecha + hora en campo hidden ──────────────────────────────── */
+    function syncFecha(fechaId, horaId, hiddenId) {
+        const fecha  = document.getElementById(fechaId);
+        const hora   = document.getElementById(horaId);
+        const hidden = document.getElementById(hiddenId);
+        if (!fecha || !hora || !hidden) return;
+        function update() {
+            if (fecha.value && hora.value) {
+                hidden.value = fecha.value + 'T' + hora.value + ':00';
+            }
+        }
+        fecha.addEventListener('change', update);
+        fecha.addEventListener('input',  update);
+        hora.addEventListener('change',  update);
+        hora.addEventListener('input',   update);
+        update(); //llenar el hidden desde el inicio
+    }
+    syncFecha('c_fecha', 'c_hora', 'c_fechaReserva');
+    syncFecha('e_fecha', 'e_hora', 'e_fechaReserva');
+
+    /* ── Validación nombre único (AJAX debounced) ───────────────────────────── */
+    let nombreTimer = null;
+
+    function setupNombreCheck(inputId, statusId, errId, submitBtnId, excludeIdFn) {
+        const input     = document.getElementById(inputId);
+        const status    = document.getElementById(statusId);
+        const errDiv    = document.getElementById(errId);
+        const submitBtn = submitBtnId ? document.getElementById(submitBtnId) : null;
+
+        if (!input) return;
+
+        input.addEventListener('input', function () {
+            clearTimeout(nombreTimer);
+            const val = this.value.trim();
+
+            if (status)  { status.className = 'nombre-status'; status.textContent = ''; }
+            if (errDiv)  errDiv.style.display = 'none';
+            input.classList.remove('is-invalid');
+            if (submitBtn) submitBtn.disabled = false;
+
+            if (val.length < 2) return;
+
+            nombreTimer = setTimeout(() => {
+                const excludeId = excludeIdFn ? excludeIdFn() : '';
+                const url = '/reservas/verificar-nombre?nombre=' +
+                            encodeURIComponent(val) +
+                            (excludeId ? '&excludeId=' + excludeId : '');
+
+                fetch(url)
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.existe) {
+                            input.classList.add('is-invalid');
+                            if (errDiv) errDiv.style.display = 'block';
+                            if (status) {
+                                status.className = 'nombre-status taken';
+                                status.innerHTML = '✕ En uso';
+                            }
+                            if (submitBtn) submitBtn.disabled = true;
+                        } else {
+                            if (status) {
+                                status.className = 'nombre-status ok';
+                                status.innerHTML = '✓ Disponible';
+                            }
+                            if (submitBtn) submitBtn.disabled = false;
+                        }
+                    })
+                    .catch(() => {});
+            }, 500);
+        });
+    }
+
+    setupNombreCheck('c_nombre', 'c_nombre_status', 'c_nombre_err', 'c_submitBtn', null);
+    setupNombreCheck('e_nombre', 'e_nombre_status', 'e_nombre_err', null,
+        () => document.getElementById('e_editarId')?.value || '');
+
+    /* ── Botón Nueva reserva ────────────────────────────────────────────────── */
+    const btnNueva = document.getElementById('btnNuevaReserva');
+    if (btnNueva) btnNueva.addEventListener('click', () => {
+        // Fecha local del navegador (no UTC)
+        const ahora = new Date();
+        const hoy = ahora.getFullYear() + '-' +
+                    String(ahora.getMonth() + 1).padStart(2, '0') + '-' +
+                    String(ahora.getDate()).padStart(2, '0');
+
+        const cFecha = document.getElementById('c_fecha');
+        if (cFecha) {
+            cFecha.min   = hoy;   // permite desde hoy
+            cFecha.value = hoy;   // preselecciona hoy
+        }
+
+        const cHora  = document.getElementById('c_hora');
+        const cHiddn = document.getElementById('c_fechaReserva');
+        if (cHora) {
+            cHora.value = String(ahora.getHours()).padStart(2, '0') + ':' +
+                          String(ahora.getMinutes()).padStart(2, '0');
+        }
+        // llenar el hidden directamente, sin depender de eventos
+        if (cFecha && cHora && cHiddn) {
+            cHiddn.value = cFecha.value + 'T' + cHora.value + ':00';
+        }
+
+        abrirModal('modalCrear');
+    });
+
+    /* ── Botones VER detalle ────────────────────────────────────────────────── */
+    const ESTADO_LABELS = {
+        PENDIENTE:  { cls: 'br-pendiente',  dot: 'dot-pendiente',  label: 'Pendiente'  },
+        CONFIRMADA: { cls: 'br-confirmada', dot: 'dot-confirmada', label: 'Confirmada' },
+        ACTIVA:     { cls: 'br-activa',     dot: 'dot-activa',     label: 'Activa'     },
+        COMPLETADA: { cls: 'br-completada', dot: 'dot-completada', label: 'Completada' },
+        CANCELADA:  { cls: 'br-cancelada',  dot: 'dot-cancelada',  label: 'Cancelada'  },
+        NO_SHOW:    { cls: 'br-noshow',     dot: 'dot-noshow',     label: 'No Show'    },
+    };
+
+    document.querySelectorAll('.btn-ver-reserva').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const d = this.dataset;
+            const nombre = d.nombre || '—';
+            const iniciales = nombre.length >= 2 ? nombre.substring(0,2).toUpperCase() : nombre.toUpperCase();
+
+            set('ver_avatar',   iniciales);
+            set('ver_nombre',   nombre);
+            set('ver_tel',      d.tel || 'Sin teléfono registrado');
+            set('ver_mesa',     d.mesa || '—');
+            set('ver_fecha',    d.fecha || '—');
+            set('ver_personas', (d.personas || '—') + ' persona(s)');
+            set('ver_tol',      (d.tol || '—') + ' minutos');
+            set('ver_creado',   d.creado || '—');
+
+            const obsEl = document.getElementById('ver_obs');
+            if (obsEl) obsEl.textContent = d.obs && d.obs !== 'null' ? d.obs : 'Sin observaciones.';
+
+            const badge = document.getElementById('ver_badge_estado');
+            const info = ESTADO_LABELS[d.estado] || { cls:'br-pendiente', dot:'dot-pendiente', label: d.estado };
+            if (badge) {
+                badge.className = 'badge-res ' + info.cls;
+                badge.innerHTML = '<span class="dot ' + info.dot + '"></span>' + info.label;
+            }
+
+            abrirModal('modalVer');
+        });
+    });
+
+    /* ── Botones EDITAR ─────────────────────────────────────────────────────── */
+    // Campo oculto para excludeId
+    let editarIdActual = '';
+    document.querySelectorAll('.btn-editar-reserva').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const d = this.dataset;
+            editarIdActual = d.id || '';
+
+            // Inyectar campo hidden id si no existe
+            let hiddenId = document.getElementById('e_editarId');
+            if (!hiddenId) {
+                hiddenId = document.createElement('input');
+                hiddenId.type = 'hidden'; hiddenId.id = 'e_editarId'; hiddenId.name = '_editarId';
+                document.getElementById('formEditar').appendChild(hiddenId);
+            }
+            hiddenId.value = d.id;
+
+            document.getElementById('formEditar').action = '/reservas/' + d.id + '/editar';
+            setVal('e_nombre',  d.nombre  || '');
+            setVal('e_tel',     d.tel     || '');
+            setVal('e_fecha',   d.fecha   || '');
+            setVal('e_hora',    d.hora    || '');
+            setVal('e_obs',     d.obs !== 'null' ? (d.obs || '') : '');
+            setVal('e_estado',  d.estado  || 'PENDIENTE');
+
+            // Personas
+            const ePers = document.getElementById('e_personas');
+            if (ePers) ePers.value = d.personas || 2;
+
+            // Mesa
+            const eMesa = document.getElementById('e_mesa');
+            if (eMesa) eMesa.value = d.mesaid || '';
+
+            // Tolerancia
+            const tolVal = d.tol || '15';
+            setVal('e_tol', tolVal);
+            document.querySelectorAll('#e_tol_opts .tol-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.val === tolVal);
+            });
+
+            // Sync fecha hidden
+            const ef = document.getElementById('e_fecha');
+            const eh = document.getElementById('e_hora');
+            const efh = document.getElementById('e_fechaReserva');
+            if (ef && eh && efh && ef.value && eh.value) {
+                efh.value = ef.value + 'T' + eh.value + ':00';
+            }
+
+            // Trigger nombre check para el estado actual
+            document.getElementById('e_nombre').dispatchEvent(new Event('input'));
+
+            abrirModal('modalEditar');
+        });
+    });
+
+    /* ── Botones ELIMINAR ───────────────────────────────────────────────────── */
+    document.querySelectorAll('.btn-eliminar-reserva').forEach(btn => {
+        btn.addEventListener('click', function () {
+            set('eliminarNombreCliente', this.dataset.nombre || '');
+            const f = document.getElementById('formEliminar');
+            if (f) f.action = '/reservas/' + this.dataset.id + '/eliminar';
+            abrirModal('modalEliminar');
+        });
+    });
+
+    /* ── Validación form crear ──────────────────────────────────────────────── */
+    const formCrear = document.getElementById('formCrear');
+    if (formCrear) {
+        formCrear.addEventListener('submit', function (e) {
+            let ok = true;
+
+            const nombre = document.getElementById('c_nombre');
+            const mesa   = document.getElementById('c_mesa');
+            const fecha  = document.getElementById('c_fecha');
+            const hora   = document.getElementById('c_hora');
+            const fechaH = document.getElementById('c_fechaReserva');
+
+            [nombre, mesa, fecha, hora].forEach(f => f && f.classList.remove('is-invalid'));
+
+            if (!nombre.value.trim()) { nombre.classList.add('is-invalid'); ok = false; }
+            if (!mesa.value)          { mesa.classList.add('is-invalid');   ok = false; }
+            if (!fecha.value)         { fecha.classList.add('is-invalid');   ok = false; }
+            if (!hora.value)          { hora.classList.add('is-invalid');    ok = false; }
+
+            // Asegurar campo hidden
+            if (fecha.value && hora.value) {
+                fechaH.value = fecha.value + 'T' + hora.value + ':00';
+            }
+            if (!fechaH.value) { ok = false; }
+
+            // Si nombre está inválido (en uso)
+            if (nombre.classList.contains('is-invalid')) ok = false;
+
+            if (!ok) e.preventDefault();
+        });
+    }
+
+    /* ── Countdown timer ────────────────────────────────────────────────────── */
+    function actualizarCountdowns() {
+        document.querySelectorAll('[data-countdown="true"]').forEach(chip => {
+            const fechaStr = chip.dataset.fecha;
+            const tol      = parseInt(chip.dataset.tol) || 15;
+            if (!fechaStr) return;
+
+            const fechaReserva = new Date(fechaStr);
+            const limite       = new Date(fechaReserva.getTime() + tol * 60000);
+            const ahora        = new Date();
+            const diffMs       = limite - ahora;
+            const diffAntes    = fechaReserva - ahora; // tiempo hasta la reserva
+
+            chip.className = 'countdown-chip';
+
+            if (diffMs < 0) {
+                // Expirada — debería ser NO_SHOW
+                chip.classList.add('cc-expired');
+                chip.textContent = 'Expirado';
+            } else if (diffAntes > 0) {
+                // Antes de la hora de reserva
+                const mins = Math.floor(diffAntes / 60000);
+                const hrs  = Math.floor(mins / 60);
+                if (hrs > 0) {
+                    chip.classList.add('cc-ok');
+                    chip.textContent = 'en ' + hrs + 'h ' + (mins % 60) + 'm';
+                } else if (mins > 15) {
+                    chip.classList.add('cc-ok');
+                    chip.textContent = 'en ' + mins + ' min';
+                } else {
+                    chip.classList.add('cc-warning');
+                    chip.textContent = 'en ' + mins + ' min';
+                }
+            } else {
+                // Dentro del período de tolerancia
+                const minsTol = Math.floor(diffMs / 60000);
+                const secsTol = Math.floor((diffMs % 60000) / 1000);
+                chip.classList.add('cc-danger');
+                chip.textContent = 'tol. ' + minsTol + ':' + String(secsTol).padStart(2,'0');
+            }
+        });
+    }
+
+    actualizarCountdowns();
+    setInterval(actualizarCountdowns, 1000);
+
+    /* ── Helpers ────────────────────────────────────────────────────────────── */
+    function set(id, val)    { const el = document.getElementById(id); if (el) el.textContent = val; }
+    function setVal(id, val) { const el = document.getElementById(id); if (el) el.value = val; }
+
+    function limpiarCrear() {
+        const f = document.getElementById('formCrear');
+        if (!f) return;
+        f.reset();
+        f.querySelectorAll('.is-invalid').forEach(i => i.classList.remove('is-invalid'));
+        const s = document.getElementById('c_nombre_status');
+        if (s) s.className = 'nombre-status';
+        const e = document.getElementById('c_nombre_err');
+        if (e) e.style.display = 'none';
+        const sb = document.getElementById('c_submitBtn');
+        if (sb) sb.disabled = false;
+        // Resetear tolerancia
+        document.querySelectorAll('#c_tol_opts .tol-btn').forEach((b, i) => {
+            b.classList.toggle('active', b.dataset.val === '15');
+        });
+        document.getElementById('c_tol').value = '15';
+    }
+
+    function limpiarEditar() {
+        const f = document.getElementById('formEditar');
+        if (!f) return;
+        f.querySelectorAll('.is-invalid').forEach(i => i.classList.remove('is-invalid'));
+        const s = document.getElementById('e_nombre_status');
+        if (s) s.className = 'nombre-status';
+    }
+});
+</script>
+
+</main>
+</body>
+</html>

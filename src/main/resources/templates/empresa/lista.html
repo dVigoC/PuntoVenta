@@ -1,0 +1,1182 @@
+<!DOCTYPE html>
+<html lang="es"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      th:replace="~{layout :: layout('Empresa', ~{::main})}">
+<body>
+<main>
+
+<style>
+    /* ── Panel empresa ───────────────────────────────────────────── */
+    .empresa-header-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: 1.75rem;
+        margin-bottom: 1.25rem;
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+    }
+    .empresa-logo-wrap {
+        width: 80px; height: 80px;
+        border-radius: 14px;
+        background: #f1f5f9;
+        border: 2px solid var(--border);
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+        overflow: hidden;
+    }
+    .empresa-logo-wrap img {
+        width: 100%; height: 100%;
+        object-fit: contain;
+    }
+    .empresa-logo-wrap svg { width: 36px; height: 36px; color: #94a3b8; }
+    .empresa-meta { flex: 1; min-width: 0; }
+    .empresa-nombre {
+        font-size: 1.35rem;
+        font-weight: 700;
+        color: var(--text-main);
+        line-height: 1.2;
+        margin-bottom: .25rem;
+    }
+    .empresa-ruc {
+        font-size: .8rem;
+        color: var(--text-sub);
+        font-family: 'Courier New', monospace;
+        letter-spacing: .05em;
+    }
+    .empresa-actions { display: flex; gap: .6rem; flex-wrap: wrap; }
+
+    /* ── Grid de datos ───────────────────────────────────────────── */
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.25rem;
+    }
+    .info-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+    }
+    .info-card-header {
+        padding: .75rem 1.1rem;
+        border-bottom: 1px solid var(--border);
+        background: #f8fafc;
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+    }
+    .info-card-header svg { width: 15px; height: 15px; color: var(--primary); }
+    .info-card-title {
+        font-size: .72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        color: var(--text-sub);
+    }
+    .info-card-body { padding: 1rem 1.1rem; }
+
+    .info-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        padding: .45rem 0;
+        border-bottom: 1px solid #f1f5f9;
+        gap: 1rem;
+    }
+    .info-row:last-child { border-bottom: none; }
+    .info-label {
+        font-size: .78rem;
+        color: var(--text-sub);
+        font-weight: 500;
+        flex-shrink: 0;
+        min-width: 110px;
+    }
+    .info-value {
+        font-size: .84rem;
+        font-weight: 600;
+        color: var(--text-main);
+        text-align: right;
+        word-break: break-word;
+    }
+    .info-value.mono { font-family: 'Courier New', monospace; font-size: .8rem; }
+
+    /* ── Empty state empresa ─────────────────────────────────────── */
+    .empresa-empty {
+        background: var(--surface);
+        border: 2px dashed var(--border);
+        border-radius: var(--radius);
+        padding: 3.5rem 1.5rem;
+        text-align: center;
+    }
+    .empresa-empty-icon {
+        width: 64px; height: 64px;
+        border-radius: 16px;
+        background: #f1f5f9;
+        display: flex; align-items: center; justify-content: center;
+        margin: 0 auto 1rem;
+    }
+    .empresa-empty-icon svg { width: 30px; height: 30px; color: #94a3b8; }
+    .empresa-empty h3 { font-size: 1rem; font-weight: 700; color: var(--text-main); margin-bottom: .35rem; }
+    .empresa-empty p { font-size: .86rem; color: var(--text-sub); margin-bottom: 1.25rem; }
+
+    /* ── Modales ─────────────────────────────────────────────────── */
+    .modal-lg { max-width: 640px; }
+
+    .form-grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0 1rem;
+    }
+    .form-grid-2 .full { grid-column: 1 / -1; }
+
+    .form-section-label {
+        font-size: .68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .09em;
+        color: var(--text-sub);
+        margin: 1rem 0 .6rem;
+        padding-bottom: .35rem;
+        border-bottom: 1px solid var(--border);
+    }
+    .form-section-label:first-child { margin-top: 0; }
+
+    .field-locked {
+        background: #f3f4f6 !important;
+        cursor: not-allowed !important;
+        color: #6b7280 !important;
+    }
+    .field-locked-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: .25rem;
+        font-size: .68rem;
+        font-weight: 600;
+        color: #6b7280;
+        background: #f1f5f9;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: .15rem .45rem;
+        margin-left: .4rem;
+        vertical-align: middle;
+    }
+    .field-locked-badge svg { width: 11px; height: 11px; }
+
+    /* Prefijo moneda */
+    .input-prefix-wrap { position: relative; }
+    .input-prefix-wrap .prefix {
+        position: absolute; left: .8rem; top: 50%;
+        transform: translateY(-50%);
+        font-size: .84rem; font-weight: 600;
+        color: var(--text-sub);
+        pointer-events: none;
+    }
+    .input-prefix-wrap input { padding-left: 2.2rem; }
+
+    /* Confirm modal */
+    .confirm-modal { max-width: 400px; }
+    .confirm-icon {
+        width: 52px; height: 52px;
+        border-radius: 50%;
+        background: #fee2e2;
+        display: flex; align-items: center; justify-content: center;
+        margin: 0 auto 1rem;
+    }
+    .confirm-icon svg { width: 24px; height: 24px; color: #991b1b; }
+    .confirm-body { text-align: center; padding: 1.5rem 1.25rem 1rem; }
+    .confirm-body h3 { font-size: .95rem; font-weight: 700; margin-bottom: .4rem; }
+    .confirm-body p { font-size: .84rem; color: var(--text-sub); }
+
+    /* IGV prefix */
+    .input-suffix-wrap { position: relative; }
+    .input-suffix-wrap .suffix {
+        position: absolute; right: .8rem; top: 50%;
+        transform: translateY(-50%);
+        font-size: .84rem; font-weight: 600;
+        color: var(--text-sub);
+        pointer-events: none;
+    }
+    .input-suffix-wrap input { padding-right: 2.2rem; }
+    
+    /* ── Scroll modal empresa ────────────────────────────────── */
+    #modalCrear .modal,
+    #modalEditar .modal {
+        max-height: 92vh;
+    }
+
+    #modalCrear .modal-body,
+    #modalEditar .modal-body {
+        overflow-y: auto;
+        max-height: calc(92vh - 130px);
+    }
+
+    /* ── Drop zone logo ──────────────────────────────────────── */
+    .logo-dropzone {
+        border: 2px dashed var(--border);
+        border-radius: 8px;
+        padding: 1.1rem;
+        text-align: center;
+        background: #fafafa;
+        cursor: pointer;
+        transition: border-color .2s, background .2s;
+    }
+    .logo-dropzone:hover {
+        border-color: var(--primary);
+        background: #f0f4ff;
+    }
+    .logo-dropzone svg {
+        width: 30px; height: 30px;
+        color: #94a3b8;
+        margin-bottom: .4rem;
+    }
+    .logo-dropzone p { font-size: .8rem; color: var(--text-sub); margin: 0; }
+    .logo-dropzone small { font-size: .72rem; color: #94a3b8; }
+    .logo-preview-img {
+        display: none;
+        max-height: 70px;
+        margin-top: .6rem;
+        border-radius: 8px;
+        object-fit: contain;
+        border: 1px solid var(--border);
+        padding: 3px;
+        background: #fff;
+    }
+    .logo-filename {
+        display: none;
+        font-size: .75rem;
+        font-weight: 600;
+        color: var(--primary);
+        margin-top: .4rem;
+    }
+    .logo-separator {
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+        margin: .65rem 0;
+    }
+    .logo-separator div { flex: 1; height: 1px; background: var(--border); }
+    .logo-separator span {
+        font-size: .7rem;
+        color: var(--text-sub);
+        white-space: nowrap;
+    }
+    .logo-actual-wrap {
+        display: none;
+        margin-bottom: .65rem;
+    }
+    .logo-actual-wrap p {
+        font-size: .72rem;
+        color: var(--text-sub);
+        margin-bottom: .3rem;
+    }
+    .logo-actual-wrap img {
+        max-height: 50px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        padding: 3px;
+        object-fit: contain;
+        background: #fff;
+    }
+</style>
+
+<!-- ══ FLASH ══════════════════════════════════════════════════════════════ -->
+<div th:if="${flashMensaje != null}"
+     th:classappend="${flashTipo == 'success' ? 'success' : 'error'}"
+     class="alert-flash" id="flashMsg">
+    <svg th:if="${flashTipo == 'success'}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" style="width:16px;height:16px;flex-shrink:0">
+        <polyline points="20 6 9 17 4 12"/>
+    </svg>
+    <svg th:unless="${flashTipo == 'success'}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" style="width:16px;height:16px;flex-shrink:0">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    <span th:text="${flashMensaje}"></span>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     CASO A: NO EXISTE EMPRESA — mostrar estado vacío + botón crear
+══════════════════════════════════════════════════════════════════════ -->
+<div th:if="${!existeEmpresa}" sec:authorize="hasRole('ADMIN')">
+    <div class="empresa-empty">
+        <div class="empresa-empty-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M3 21h18M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"/>
+                <path d="M5 21V10.85M19 21V10.85M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"/>
+            </svg>
+        </div>
+        <h3>No hay empresa registrada</h3>
+        <p>Configure los datos de su establecimiento para comenzar a emitir comprobantes.</p>
+        <button class="btn btn-create" id="btnNuevaEmpresa">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 style="width:15px;height:15px">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Registrar empresa
+        </button>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     CASO B: EXISTE EMPRESA — mostrar datos
+══════════════════════════════════════════════════════════════════════ -->
+<div th:if="${existeEmpresa and empresa != null}">
+
+    <!-- Header empresa -->
+    <div class="empresa-header-card">
+        <div class="empresa-logo-wrap">
+            <img th:if="${empresa.logoUrl != null and !#strings.isEmpty(empresa.logoUrl)}"
+                 th:src="${empresa.logoUrl}" alt="Logo"
+                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+                 th:style="${empresa.logoUrl == null or #strings.isEmpty(empresa.logoUrl)} ? '' : 'display:none'">
+                <path d="M3 21h18M3 7v1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7m0 1a3 3 0 0 0 6 0V7H3l2-4h14l2 4"/>
+                <path d="M5 21V10.85M19 21V10.85M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"/>
+            </svg>
+        </div>
+        <div class="empresa-meta">
+            <div class="empresa-nombre" th:text="${empresa.nombre}">Nombre</div>
+            <div class="empresa-ruc">
+                RUC: <span th:text="${empresa.ruc != null ? empresa.ruc : '—'}">—</span>
+                &nbsp;·&nbsp;
+                <span class="badge badge-active" th:if="${empresa.activo}">Activa</span>
+            </div>
+        </div>
+        <div class="empresa-actions" sec:authorize="hasRole('ADMIN')">
+            <button class="btn btn-edit" id="btnEditarEmpresa"
+                    th:data-id="${empresa.id}"
+                    th:data-nombre="${empresa.nombre}"
+                    th:data-ruc="${empresa.ruc}"
+                    th:data-direccion="${empresa.direccion}"
+                    th:data-telefono="${empresa.telefono}"
+                    th:data-email="${empresa.email}"
+                    th:data-logourl="${empresa.logoUrl}"
+                    th:data-moneda="${empresa.moneda}"
+                    th:data-igv="${empresa.porcentajeIgv}"
+                    th:data-piefactura="${empresa.pieFactura}"
+                    th:data-desarrollador="${empresa.desarrollador}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:14px;height:14px">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+                Editar empresa
+            </button>
+            <button class="btn btn-delete" id="btnEliminarEmpresa"
+                    th:data-id="${empresa.id}"
+                    th:data-nombre="${empresa.nombre}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:14px;height:14px">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                </svg>
+                Eliminar
+            </button>
+        </div>
+    </div>
+
+    <!-- Grid de info -->
+    <div class="info-grid">
+
+        <!-- Contacto -->
+        <div class="info-card">
+            <div class="info-card-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.63 3.18 2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.1a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21.73 15.5z"/>
+                </svg>
+                <span class="info-card-title">Contacto</span>
+            </div>
+            <div class="info-card-body">
+                <div class="info-row">
+                    <span class="info-label">Teléfono</span>
+                    <span class="info-value" th:text="${empresa.telefono ?: '—'}">—</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Email</span>
+                    <span class="info-value" th:text="${empresa.email ?: '—'}">—</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Dirección</span>
+                    <span class="info-value" th:text="${empresa.direccion ?: '—'}">—</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Fiscal -->
+        <div class="info-card">
+            <div class="info-card-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                </svg>
+                <span class="info-card-title">Datos Fiscales</span>
+            </div>
+            <div class="info-card-body">
+                <div class="info-row">
+                    <span class="info-label">RUC</span>
+                    <span class="info-value mono" th:text="${empresa.ruc ?: '—'}">—</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Moneda</span>
+                    <span class="info-value" th:text="${empresa.moneda}">PEN</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">IGV</span>
+                    <span class="info-value"
+                          th:text="${#numbers.formatDecimal(empresa.porcentajeIgv, 1, 2) + '%'}">18.00%</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Comprobantes -->
+        <div class="info-card">
+            <div class="info-card-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="5" width="20" height="14" rx="2"/>
+                    <line x1="2" y1="10" x2="22" y2="10"/>
+                </svg>
+                <span class="info-card-title">Comprobantes</span>
+            </div>
+            <div class="info-card-body">
+                <div class="info-row">
+                    <span class="info-label">Pie de factura</span>
+                    <span class="info-value" th:text="${empresa.pieFactura ?: '—'}">—</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Desarrollador</span>
+                    <span class="info-value" th:text="${empresa.desarrollador ?: '—'}">—</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Logo URL</span>
+                    <span class="info-value"
+                          th:text="${empresa.logoUrl != null ? empresa.logoUrl : '—'}"
+                          style="font-size:.75rem; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">—</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sistema -->
+        <div class="info-card">
+            <div class="info-card-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.07 4.93A10 10 0 1 0 4.93 19.07"/>
+                </svg>
+                <span class="info-card-title">Sistema</span>
+            </div>
+            <div class="info-card-body">
+                <div class="info-row">
+                    <span class="info-label">Registrada</span>
+                    <span class="info-value"
+                          th:text="${#temporals.format(empresa.creadoEn, 'dd/MM/yyyy HH:mm')}">—</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Actualizada</span>
+                    <span class="info-value"
+                          th:text="${#temporals.format(empresa.actualizadoEn, 'dd/MM/yyyy HH:mm')}">—</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Estado</span>
+                    <span class="badge badge-active">Activa</span>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- /info-grid -->
+</div><!-- /existeEmpresa -->
+
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     MODAL: CREAR EMPRESA
+══════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalCrear" sec:authorize="hasRole('ADMIN')">
+    <div class="modal modal-lg">
+        <div class="modal-header">
+            <span class="modal-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:16px;height:16px;vertical-align:middle;margin-right:.35rem">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Registrar empresa
+            </span>
+            <button class="modal-close" onclick="cerrarModal('modalCrear')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:18px;height:18px">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+
+        <form th:action="@{/empresa/crear}" method="post" id="formCrear"
+        enctype="multipart/form-data" novalidate>
+            <input type="hidden" th:name="${_csrf?.parameterName}" th:value="${_csrf?.token}"/>
+            <div class="modal-body">
+
+                <!-- Identificación -->
+                <div class="form-section-label">Identificación</div>
+                <div class="form-grid-2">
+                    <div class="form-group full">
+                        <label class="form-label" for="c_nombre">
+                            Razón social / Nombre <span style="color:#b91c1c">*</span>
+                        </label>
+                        <input type="text" id="c_nombre" name="nombre"
+                               class="form-control"
+                               placeholder="ej. Restaurante El Buen Sabor S.A.C."
+                               maxlength="150" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="c_ruc">
+                            RUC <span style="color:#b91c1c">*</span>
+                        </label>
+                        <input type="text" id="c_ruc" name="ruc"
+                               class="form-control mono"
+                               placeholder="ej. 20123456789"
+                               maxlength="11" 
+                               pattern="[0-9]{11}"
+                                inputmode="numeric"
+                                autocomplete="off"
+                               style="font-family:'Courier New',monospace;">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="c_moneda">Moneda</label>
+                        <select id="c_moneda" name="moneda" class="form-select">
+                            <option value="PEN" selected>PEN — Sol peruano</option>
+                            <option value="USD">USD — Dólar americano</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Contacto -->
+                <div class="form-section-label">Contacto</div>
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label class="form-label" for="c_telefono">Teléfono</label>
+                        <input type="tel" id="c_telefono" name="telefono"
+                               class="form-control"
+                               placeholder="ej. 044-123456"
+                               maxlength="9"
+                               inputmode="numeric"
+                                pattern="[0-9]{9}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="c_email">Correo electrónico</label>
+                        <input type="email" id="c_email" name="email"
+                               class="form-control"
+                               placeholder="ej. contacto@empresa.com"
+                               maxlength="100">
+                    </div>
+                    <div class="form-group full">
+                        <label class="form-label" for="c_direccion">Dirección</label>
+                        <input type="text" id="c_direccion" name="direccion"
+                               class="form-control"
+                               placeholder="ej. Av. España 123, Trujillo"
+                               maxlength="255">
+                    </div>
+                </div>
+
+                <!-- Fiscal -->
+                <div class="form-section-label">Configuración fiscal</div>
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label class="form-label" for="c_igv">Porcentaje IGV</label>
+                        <div class="input-suffix-wrap">
+                            <input type="number" id="c_igv" name="porcentajeIgv"
+                                   class="form-control"
+                                   value="18.00" min="0" max="99" step="0.01">
+                            <span class="suffix">%</span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="c_piefactura">Pie de comprobante</label>
+                        <input type="text" id="c_piefactura" name="pieFactura"
+                               class="form-control"
+                               placeholder="ej. Gracias por su visita"
+                               maxlength="255">
+                    </div>
+                </div>
+
+                <!-- Personalización -->
+                <div class="form-section-label">Personalización</div>
+                <div class="form-grid-2">
+
+                    <!-- Logo -->
+                    <div class="form-group full">
+                        <label class="form-label">Logo de la empresa</label>
+
+                        <!-- Dropzone -->
+                        <div class="logo-dropzone" id="c_dropzone"
+                            onclick="document.getElementById('c_logoFile').click()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="17 8 12 3 7 8"/>
+                                <line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                            <p>Haz clic para seleccionar imagen</p>
+                            <small>PNG, JPG o WEBP · Máx. 2MB</small>
+                            <img id="c_logoPreview" class="logo-preview-img" src="" alt="Preview">
+                            <p id="c_logoFilename" class="logo-filename"></p>
+                        </div>
+
+                        <!-- Input file oculto -->
+                        <input type="file" id="c_logoFile" name="logoFile"
+                            accept="image/png,image/jpeg,image/webp"
+                            style="display:none;">
+
+                        <!-- Separador O -->
+                        <div class="logo-separator">
+                            <div></div>
+                            <span>o ingresar URL directamente</span>
+                            <div></div>
+                        </div>
+
+                        <!-- URL manual -->
+                        <input type="url" id="c_logoUrl" name="logoUrl"
+                            class="form-control"
+                            placeholder="https://...imagen.png">
+                        <p style="font-size:.71rem;color:var(--text-sub);margin-top:.3rem;">
+                            Si subes un archivo, tiene prioridad sobre la URL.
+                        </p>
+                    </div>
+
+                    <!-- Desarrollador -->
+                    <div class="form-group full">
+                        <label class="form-label" for="c_desarrollador">Texto desarrollador</label>
+                        <input type="text" id="c_desarrollador" name="desarrollador"
+                            class="form-control"
+                            placeholder="ej. Desarrollado por TuEmpresa Dev"
+                            maxlength="150">
+                    </div>
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="cerrarModal('modalCrear')">
+                    Cancelar
+                </button>
+                <button type="submit" class="btn btn-create">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         style="width:15px;height:15px">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    Guardar empresa
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     MODAL: EDITAR EMPRESA
+══════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalEditar" sec:authorize="hasRole('ADMIN')">
+    <div class="modal modal-lg">
+        <div class="modal-header">
+            <span class="modal-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:16px;height:16px;vertical-align:middle;margin-right:.35rem">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+                Editar empresa
+            </span>
+            <button class="modal-close" onclick="cerrarModal('modalEditar')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:18px;height:18px">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+
+        <form id="formEditar" method="post"
+        enctype="multipart/form-data" novalidate>
+            <input type="hidden" th:name="${_csrf?.parameterName}" th:value="${_csrf?.token}"/>
+            <div class="modal-body">
+
+                <!-- Identificación -->
+                <div class="form-section-label">Identificación</div>
+                <div class="form-grid-2">
+                    <div class="form-group full">
+                        <label class="form-label" for="e_nombre">
+                            Razón social / Nombre <span style="color:#b91c1c">*</span>
+                        </label>
+                        <input type="text" id="e_nombre" name="nombre"
+                               class="form-control"
+                               maxlength="150" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">
+                            RUC
+                            <span class="field-locked-badge">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                                </svg>
+                                No editable
+                            </span>
+                        </label>
+                        <input type="text" id="e_ruc" name="ruc_display"
+                               class="form-control field-locked"
+                               readonly tabindex="-1">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="e_moneda">Moneda</label>
+                        <select id="e_moneda" name="moneda" class="form-select">
+                            <option value="PEN">PEN — Sol peruano</option>
+                            <option value="USD">USD — Dólar americano</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Contacto -->
+                <div class="form-section-label">Contacto</div>
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label class="form-label" for="e_telefono">Teléfono</label>
+                        <input type="tel" id="e_telefono" name="telefono"
+                               class="form-control" maxlength="9" inputmode="numeric">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="e_email">Correo electrónico</label>
+                        <input type="email" id="e_email" name="email"
+                               class="form-control" maxlength="100">
+                    </div>
+                    <div class="form-group full">
+                        <label class="form-label" for="e_direccion">Dirección</label>
+                        <input type="text" id="e_direccion" name="direccion"
+                               class="form-control" maxlength="255">
+                    </div>
+                </div>
+
+                <!-- Fiscal -->
+                <div class="form-section-label">Configuración fiscal</div>
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label class="form-label" for="e_igv">Porcentaje IGV</label>
+                        <div class="input-suffix-wrap">
+                            <input type="number" id="e_igv" name="porcentajeIgv"
+                                   class="form-control"
+                                   min="0" max="99" step="0.01">
+                            <span class="suffix">%</span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="e_piefactura">Pie de comprobante</label>
+                        <input type="text" id="e_piefactura" name="pieFactura"
+                               class="form-control" maxlength="255">
+                    </div>
+                </div>
+
+                <!-- Personalización -->
+                <div class="form-section-label">Personalización</div>
+                <div class="form-grid-2">
+
+                    <!-- Logo -->
+                    <div class="form-group full">
+                        <label class="form-label">Logo de la empresa</label>
+
+                        <!-- Logo actual (se muestra si ya tiene uno) -->
+                        <div class="logo-actual-wrap" id="e_logoActualWrap">
+                            <p>Logo actual:</p>
+                            <img id="e_logoActual" src="" alt="Logo actual">
+                        </div>
+
+                        <!-- Dropzone nuevo logo -->
+                        <div class="logo-dropzone" id="e_dropzone"
+                            onclick="document.getElementById('e_logoFile').click()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="17 8 12 3 7 8"/>
+                                <line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                            <p>Haz clic para cambiar el logo</p>
+                            <small>PNG, JPG o WEBP · Máx. 2MB</small>
+                            <img id="e_logoPreview" class="logo-preview-img" src="" alt="Preview">
+                            <p id="e_logoFilename" class="logo-filename"></p>
+                        </div>
+
+                        <!-- Input file oculto -->
+                        <input type="file" id="e_logoFile" name="logoFile"
+                            accept="image/png,image/jpeg,image/webp"
+                            style="display:none;">
+
+                        <!-- Separador O -->
+                        <div class="logo-separator">
+                            <div></div>
+                            <span>o ingresar URL directamente</span>
+                            <div></div>
+                        </div>
+
+                        <!-- URL manual -->
+                        <input type="url" id="e_logoUrl" name="logoUrl"
+                            class="form-control"
+                            placeholder="https://...imagen.png">
+                        <p style="font-size:.71rem;color:var(--text-sub);margin-top:.3rem;">
+                            Deja vacío para conservar el logo actual.
+                        </p>
+                    </div>
+
+                    <!-- Desarrollador -->
+                    <div class="form-group full">
+                        <label class="form-label" for="e_desarrollador">Texto desarrollador</label>
+                        <input type="text" id="e_desarrollador" name="desarrollador"
+                            class="form-control" maxlength="150">
+                    </div>
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="cerrarModal('modalEditar')">
+                    Cancelar
+                </button>
+                <button type="submit" class="btn btn-edit">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         style="width:15px;height:15px">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    Guardar cambios
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     MODAL: CONFIRMAR ELIMINAR
+══════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalEliminar" sec:authorize="hasRole('ADMIN')">
+    <div class="modal confirm-modal">
+        <div class="modal-header">
+            <span class="modal-title">Confirmar eliminación</span>
+            <button class="modal-close" onclick="cerrarModal('modalEliminar')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:18px;height:18px">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+        <div class="confirm-body">
+            <div class="confirm-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                    <path d="M10 11v6"/><path d="M14 11v6"/>
+                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                </svg>
+            </div>
+            <h3>¿Eliminar la empresa?</h3>
+            <p>La empresa <strong id="eliminarNombreEmp"></strong> quedará inactiva.
+               Podrá registrar una nueva empresa después.</p>
+        </div>
+        <form id="formEliminar" method="post">
+            <input type="hidden" th:name="${_csrf?.parameterName}" th:value="${_csrf?.token}"/>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="cerrarModal('modalEliminar')">
+                    Cancelar
+                </button>
+                <button type="submit" class="btn btn-delete">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         style="width:15px;height:15px">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                    </svg>
+                    Sí, eliminar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+    // ── Utilidades modal ──────────────────────────────────────────
+    function abrirModal(id)  { document.getElementById(id)?.classList.add('open'); }
+
+    function cerrarModal(id) {
+        document.getElementById(id)?.classList.remove('open');
+        if (id === 'modalCrear') limpiarFormCrear();
+        if (id === 'modalEditar') limpiarFormEditar();
+    }
+    window.cerrarModal = cerrarModal;
+
+    // ── Abrir CREAR ───────────────────────────────────────────────
+    const btnNueva = document.getElementById('btnNuevaEmpresa');
+    if (btnNueva) btnNueva.addEventListener('click', () => abrirModal('modalCrear'));
+
+    // ── Abrir EDITAR ──────────────────────────────────────────────
+    const btnEditar = document.getElementById('btnEditarEmpresa');
+    if (btnEditar) {
+        btnEditar.addEventListener('click', function () {
+            const d = this.dataset;
+
+            document.getElementById('e_nombre').value        = d.nombre       || '';
+            document.getElementById('e_ruc').value           = d.ruc          || '—';
+            document.getElementById('e_telefono').value      = d.telefono     || '';
+            document.getElementById('e_email').value         = d.email        || '';
+            document.getElementById('e_direccion').value     = d.direccion    || '';
+            document.getElementById('e_igv').value           = d.igv          || '18.00';
+            document.getElementById('e_piefactura').value    = d.piefactura   || '';
+            document.getElementById('e_desarrollador').value = d.desarrollador || '';
+            document.getElementById('e_logoUrl').value       = '';  // siempre vacío al abrir
+
+            const sel = document.getElementById('e_moneda');
+            if (sel) sel.value = d.moneda || 'PEN';
+
+            // Mostrar logo actual si existe
+            const logoActualWrap = document.getElementById('e_logoActualWrap');
+            const logoActualImg  = document.getElementById('e_logoActual');
+            if (d.logourl && d.logourl.trim() !== '' && d.logourl !== 'null') {
+                logoActualImg.src = d.logourl;
+                logoActualWrap.style.display = 'block';
+            } else {
+                logoActualWrap.style.display = 'none';
+            }
+
+            // Limpiar preview nuevo
+            limpiarPreviewLogo('e');
+
+            const form = document.getElementById('formEditar');
+            if (form) form.action = '/empresa/' + d.id + '/editar';
+
+            abrirModal('modalEditar');
+        });
+    }
+
+    // ── Abrir ELIMINAR ────────────────────────────────────────────
+    const btnEliminar = document.getElementById('btnEliminarEmpresa');
+    if (btnEliminar) {
+        btnEliminar.addEventListener('click', function () {
+            document.getElementById('eliminarNombreEmp').textContent = this.dataset.nombre;
+            const form = document.getElementById('formEliminar');
+            if (form) form.action = '/empresa/' + this.dataset.id + '/eliminar';
+            abrirModal('modalEliminar');
+        });
+    }
+
+    // ── Preview logo CREAR ────────────────────────────────────────
+    const logoFileCrear = document.getElementById('c_logoFile');
+    if (logoFileCrear) {
+        logoFileCrear.addEventListener('change', function () {
+            mostrarPreviewLogo(this, 'c');
+            // Si seleccionó archivo, limpiar URL manual
+            const urlInput = document.getElementById('c_logoUrl');
+            if (urlInput) urlInput.value = '';
+        });
+    }
+
+    // ── Preview logo EDITAR ───────────────────────────────────────
+    const logoFileEditar = document.getElementById('e_logoFile');
+    if (logoFileEditar) {
+        logoFileEditar.addEventListener('change', function () {
+            mostrarPreviewLogo(this, 'e');
+            // Si seleccionó archivo, limpiar URL manual
+            const urlInput = document.getElementById('e_logoUrl');
+            if (urlInput) urlInput.value = '';
+        });
+    }
+
+    // ── Cerrar al clic en overlay ─────────────────────────────────
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+        overlay.addEventListener('click', e => {
+            if (e.target === overlay) {
+                const id = overlay.id;
+                overlay.classList.remove('open');
+                if (id === 'modalCrear') limpiarFormCrear();
+                if (id === 'modalEditar') limpiarFormEditar();
+            }
+        });
+    });
+
+    // ── Cerrar con Escape ─────────────────────────────────────────
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.modal-overlay.open').forEach(m => {
+                const id = m.id;
+                m.classList.remove('open');
+                if (id === 'modalCrear') limpiarFormCrear();
+                if (id === 'modalEditar') limpiarFormEditar();
+            });
+        }
+    });
+
+    // ── Solo números en RUC ───────────────────────────────────────
+    const rucInput = document.getElementById('c_ruc');
+
+    if (rucInput) {
+        rucInput.addEventListener('input', function () {
+            this.value = this.value.replace(/\D/g, '').slice(0, 11);
+        });
+    }
+
+    // ── Solo números en teléfono ──────────────────────────────────
+    const telefonoInput = document.getElementById('c_telefono');
+
+    if (telefonoInput) {
+        telefonoInput.addEventListener('input', function () {
+            this.value = this.value.replace(/\D/g, '').slice(0, 9);
+        });
+    }
+
+    // ── Validación CREAR ──────────────────────────────────────────
+    const formCrear = document.getElementById('formCrear');
+    if (formCrear) {
+        formCrear.addEventListener('submit', function (e) {
+
+            const nombre   = document.getElementById('c_nombre');
+            const ruc      = document.getElementById('c_ruc');
+            const telefono = document.getElementById('c_telefono');
+
+            let ok = true;
+
+            [nombre, ruc, telefono].forEach(f => f?.classList.remove('is-invalid'));
+
+            // Nombre obligatorio
+            if (!nombre.value.trim()) {
+                nombre.classList.add('is-invalid');
+                ok = false;
+            }
+
+            // RUC: exactamente 11 dígitos
+            const rucValue = ruc.value.trim();
+            if (!/^\d{11}$/.test(rucValue)) {
+                ruc.classList.add('is-invalid');
+                ok = false;
+                alert('El RUC debe contener exactamente 11 dígitos numéricos.');
+            }
+
+            // Teléfono: opcional, pero si existe debe tener 9 dígitos
+            const telefonoValue = telefono.value.trim();
+            if (telefonoValue && !/^\d{9}$/.test(telefonoValue)) {
+                telefono.classList.add('is-invalid');
+                ok = false;
+                alert('El teléfono debe contener exactamente 9 dígitos.');
+            }
+
+            if (!ok) {
+                e.preventDefault();
+            }
+        });
+    }
+
+    // ── Solo números en teléfono EDITAR ───────────────────────────
+    const telefonoEditarInput = document.getElementById('e_telefono');
+
+    if (telefonoEditarInput) {
+        telefonoEditarInput.addEventListener('input', function () {
+            this.value = this.value.replace(/\D/g, '').slice(0, 9);
+        });
+    }
+
+    // ── Validación EDITAR ─────────────────────────────────────────
+    const formEditar = document.getElementById('formEditar');
+    if (formEditar) {
+        formEditar.addEventListener('submit', function (e) {
+
+            const nombre   = document.getElementById('e_nombre');
+            const telefono = document.getElementById('e_telefono');
+
+            let ok = true;
+
+            [nombre, telefono].forEach(f => f?.classList.remove('is-invalid'));
+
+            // Nombre obligatorio
+            if (!nombre.value.trim()) {
+                nombre.classList.add('is-invalid');
+                ok = false;
+            }
+
+            // Teléfono opcional, pero si existe debe tener 9 dígitos
+            const telefonoValue = telefono.value.trim();
+
+            if (telefonoValue && !/^\d{9}$/.test(telefonoValue)) {
+                telefono.classList.add('is-invalid');
+                ok = false;
+                alert('El teléfono debe contener exactamente 9 dígitos.');
+            }
+
+            if (!ok) {
+                e.preventDefault();
+            }
+        });
+    }
+
+    // ── Flash auto-ocultar ────────────────────────────────────────
+    const flash = document.getElementById('flashMsg');
+    if (flash) {
+        setTimeout(() => {
+            flash.style.transition = 'opacity .4s';
+            flash.style.opacity = '0';
+            setTimeout(() => flash.remove(), 400);
+        }, 4000);
+    }
+
+    // ── HELPERS ───────────────────────────────────────────────────
+
+    function mostrarPreviewLogo(input, prefix) {
+        const file = input.files[0];
+        if (!file) return;
+        const preview  = document.getElementById(prefix + '_logoPreview');
+        const filename = document.getElementById(prefix + '_logoFilename');
+        const reader   = new FileReader();
+        reader.onload = ev => {
+            if (preview)  { preview.src = ev.target.result; preview.style.display = 'block'; }
+            if (filename) { filename.textContent = file.name; filename.style.display = 'block'; }
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function limpiarPreviewLogo(prefix) {
+        const preview  = document.getElementById(prefix + '_logoPreview');
+        const filename = document.getElementById(prefix + '_logoFilename');
+        const fileInput = document.getElementById(prefix + '_logoFile');
+        if (preview)   { preview.src = ''; preview.style.display = 'none'; }
+        if (filename)  { filename.textContent = ''; filename.style.display = 'none'; }
+        if (fileInput) fileInput.value = '';
+    }
+
+    function limpiarFormCrear() {
+        const f = document.getElementById('formCrear');
+        if (!f) return;
+        f.reset();
+        f.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+        const igv    = document.getElementById('c_igv');
+        const moneda = document.getElementById('c_moneda');
+        if (igv)    igv.value    = '18.00';
+        if (moneda) moneda.value = 'PEN';
+        limpiarPreviewLogo('c');
+    }
+
+    function limpiarFormEditar() {
+        const f = document.getElementById('formEditar');
+        if (!f) return;
+        f.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+        limpiarPreviewLogo('e');
+        // Ocultar logo actual
+        const wrap = document.getElementById('e_logoActualWrap');
+        if (wrap) wrap.style.display = 'none';
+    }
+});
+</script>
+
+</main>
+</body>
+</html>

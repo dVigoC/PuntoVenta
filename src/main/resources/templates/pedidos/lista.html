@@ -1,0 +1,1291 @@
+<!DOCTYPE html>
+<html lang="es"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      th:replace="~{layout :: layout('Pedidos', ~{::main})}">
+<body>
+<main>
+
+<style>
+/* ══════════════════════════════════════════════════════════════
+   VARIABLES LOCALES — PEDIDOS
+══════════════════════════════════════════════════════════════ */
+:root {
+    --ped-abierto-bg:   #eff6ff; --ped-abierto-color:   #1d4ed8;
+    --ped-cocina-bg:    #fff7ed; --ped-cocina-color:    #c2410c;
+    --ped-servido-bg:   #f0fdf4; --ped-servido-color:   #15803d;
+    --ped-cobrado-bg:   #f1f5f9; --ped-cobrado-color:   #475569;
+    --ped-anulado-bg:   #fff1f2; --ped-anulado-color:   #9f1239;
+}
+
+/* ── Stats ─────────────────────────────────────────────────── */
+.stats-pedidos {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: .7rem;
+    margin-bottom: 1.25rem;
+}
+.stat-chip {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: .85rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: .7rem;
+    box-shadow: var(--shadow);
+}
+.stat-icon {
+    width: 38px; height: 38px;
+    border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+}
+.stat-icon svg { width: 18px; height: 18px; }
+.si-blue   { background: #dbeafe; color: #1d4ed8; }
+.si-orange { background: #ffedd5; color: #c2410c; }
+.si-green  { background: #dcfce7; color: #15803d; }
+.si-slate  { background: #f1f5f9; color: #475569; }
+.si-red    { background: #fee2e2; color: #9f1239; }
+.si-indigo { background: #e0e7ff; color: #4338ca; }
+
+.stat-value { font-size: 1.35rem; font-weight: 800; line-height: 1; color: var(--text-main); }
+.stat-label { font-size: .69rem; color: var(--text-sub); margin-top: 2px; font-weight: 500; }
+
+/* ── Toolbar ────────────────────────────────────────────────── */
+.toolbar {
+    display: flex; align-items: center;
+    gap: .55rem; flex-wrap: wrap;
+}
+.search-wrap {
+    position: relative; flex: 1;
+    min-width: 200px; max-width: 280px;
+}
+.search-wrap svg {
+    position: absolute; left: .7rem; top: 50%;
+    transform: translateY(-50%);
+    width: 14px; height: 14px;
+    color: var(--text-sub); pointer-events: none;
+}
+.search-wrap input {
+    width: 100%;
+    padding: .48rem .8rem .48rem 2.1rem;
+    font-size: .84rem; font-family: inherit;
+    border: 1.5px solid var(--border); border-radius: 8px;
+    background: var(--surface); color: var(--text-main);
+    outline: none; transition: border-color .2s, box-shadow .2s;
+}
+.search-wrap input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(29,53,87,.07);
+}
+.filter-select {
+    padding: .46rem .75rem; font-size: .82rem;
+    font-family: inherit;
+    border: 1.5px solid var(--border); border-radius: 8px;
+    background: var(--surface); color: var(--text-main);
+    cursor: pointer; outline: none; min-width: 155px;
+    transition: border-color .2s;
+}
+.filter-select:focus { border-color: var(--primary); }
+
+/* ── Estado badges ──────────────────────────────────────────── */
+.badge-ped {
+    display: inline-flex; align-items: center; gap: .3rem;
+    padding: .22rem .65rem; border-radius: 20px;
+    font-size: .71rem; font-weight: 700;
+    letter-spacing: .03em; white-space: nowrap;
+}
+.badge-ped .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%; display: inline-block; flex-shrink: 0;
+}
+.bp-abierto  { background: var(--ped-abierto-bg);  color: var(--ped-abierto-color); }
+.bp-cocina   { background: var(--ped-cocina-bg);   color: var(--ped-cocina-color);  }
+.bp-servido  { background: var(--ped-servido-bg);  color: var(--ped-servido-color); }
+.bp-cobrado  { background: var(--ped-cobrado-bg);  color: var(--ped-cobrado-color); }
+.bp-anulado  { background: var(--ped-anulado-bg);  color: var(--ped-anulado-color); }
+
+.dot-abierto  { background: var(--ped-abierto-color); }
+.dot-cocina   { background: var(--ped-cocina-color);  }
+.dot-servido  { background: var(--ped-servido-color); }
+.dot-cobrado  { background: var(--ped-cobrado-color); }
+.dot-anulado  { background: var(--ped-anulado-color); }
+
+/* ── Mesa pill ──────────────────────────────────────────────── */
+.mesa-pill {
+    display: inline-flex; align-items: center; gap: .3rem;
+    padding: .2rem .55rem;
+    background: #e0e7ff; color: #3730a3;
+    border-radius: 20px;
+    font-size: .71rem; font-weight: 700; white-space: nowrap;
+}
+
+/* ── Número pedido ──────────────────────────────────────────── */
+.num-pedido {
+    font-family: 'Courier New', monospace;
+    font-size: .82rem; font-weight: 700;
+    color: var(--text-main);
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: .15rem .45rem;
+    white-space: nowrap;
+}
+
+/* ── Total cell ─────────────────────────────────────────────── */
+.total-cell {
+    font-size: .92rem; font-weight: 800;
+    color: #1d3557;
+}
+
+/* ── Actions ────────────────────────────────────────────────── */
+.actions-cell {
+    display: flex; gap: .3rem;
+    align-items: center; justify-content: center;
+}
+
+/* ── Empty state ────────────────────────────────────────────── */
+.empty-state {
+    text-align: center; padding: 3.5rem 1rem;
+    color: var(--text-sub);
+}
+.empty-state svg { width: 48px; height: 48px; opacity: .2; margin-bottom: .75rem; }
+.empty-state p { font-size: .88rem; }
+
+.pag-info {
+    font-size: .77rem; color: var(--text-sub);
+    text-align: center; padding-top: .3rem;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   MODAL CREAR PEDIDO
+══════════════════════════════════════════════════════════════ */
+.modal-crear { max-width: 780px; }
+/*  Agrega al modal-body para que el scroll sea interno */
+.modal-crear .modal-body {
+    max-height: calc(100vh - 180px);
+    overflow-y: auto;
+}
+
+/* Selector de mesas — cards tipo grid */
+.mesas-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: .45rem;
+    max-height: 220px;
+    overflow-y: auto;
+    padding: .25rem;
+}
+.mesa-card {
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: .6rem .5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all .15s;
+    background: #fafafa;
+    user-select: none;
+}
+.mesa-card:hover { border-color: #6366f1; background: #eef2ff; }
+.mesa-card.selected {
+    border-color: #4338ca;
+    background: #e0e7ff;
+    box-shadow: 0 0 0 3px rgba(67,56,202,.12);
+}
+.mesa-card.mesa-ocupada {
+    border-color: #fca5a5; background: #fff1f2;
+    cursor: not-allowed; opacity: .6;
+}
+.mesa-card-area {
+    font-size: .62rem; color: var(--text-sub);
+    text-transform: uppercase; letter-spacing: .07em;
+    margin-bottom: .2rem;
+}
+.mesa-card-num {
+    font-size: 1rem; font-weight: 800; color: var(--text-main);
+    line-height: 1.2;
+}
+.mesa-card-estado {
+    font-size: .6rem; font-weight: 600;
+    margin-top: .25rem; border-radius: 20px;
+    padding: .1rem .35rem; display: inline-block;
+}
+.mc-libre     { background: #dcfce7; color: #15803d; }
+.mc-reservada { background: #fef9c3; color: #854d0e; }
+
+/* Aviso pedido activo */
+.aviso-pedido-activo {
+    display: none;
+    background: #fffbeb;
+    border: 1.5px solid #fcd34d;
+    border-radius: 8px;
+    padding: .65rem .9rem;
+    font-size: .82rem; color: #92400e;
+    margin-top: .65rem;
+    align-items: center; gap: .5rem;
+}
+.aviso-pedido-activo.show { display: flex; }
+.aviso-pedido-activo a {
+    font-weight: 700; color: #92400e; text-decoration: underline;
+}
+
+/* ── Selector de productos ──────────────────────────────────── */
+.productos-panel {
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    max-height: 300px;
+}
+.productos-search {
+    padding: .55rem .75rem;
+    border-bottom: 1px solid var(--border);
+    background: #f8fafc;
+    position: relative;
+}
+.productos-search svg {
+    position: absolute; left: 1.25rem; top: 50%;
+    transform: translateY(-50%);
+    width: 13px; height: 13px; color: var(--text-sub);
+}
+.productos-search input {
+    width: 100%; padding: .4rem .7rem .4rem 2rem;
+    font-size: .83rem; font-family: inherit;
+    border: 1px solid var(--border); border-radius: 7px;
+    background: #fff; outline: none;
+    transition: border-color .2s;
+}
+.productos-search input:focus { border-color: var(--primary); }
+
+.categorias-tabs {
+    display: flex; overflow-x: auto;
+    border-bottom: 1px solid var(--border);
+    background: #f8fafc;
+    scrollbar-width: none;
+    flex-shrink: 0;
+}
+.categorias-tabs::-webkit-scrollbar { display: none; }
+.cat-tab {
+    padding: .42rem .85rem;
+    font-size: .75rem; font-weight: 600;
+    color: var(--text-sub); white-space: nowrap;
+    cursor: pointer; border-bottom: 2px solid transparent;
+    transition: all .15s; flex-shrink: 0;
+    border: none; background: none; font-family: inherit;
+}
+.cat-tab:hover { color: var(--primary); }
+.cat-tab.active { color: #1d3557; border-bottom-color: #1d3557; }
+
+.productos-lista {
+    overflow-y: auto; flex: 1;
+    padding: .4rem;
+}
+.producto-row {
+    display: flex; align-items: center;
+    padding: .45rem .55rem;
+    border-radius: 8px;
+    gap: .6rem;
+    cursor: pointer;
+    transition: background .13s;
+    border: 1px solid transparent;
+}
+.producto-row:hover { background: #f1f5f9; }
+.producto-row.en-carrito { background: #eff6ff; border-color: #bfdbfe; }
+
+.pr-check {
+    width: 16px; height: 16px; border-radius: 4px;
+    border: 1.5px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: all .13s;
+}
+.producto-row.en-carrito .pr-check {
+    background: #1d3557; border-color: #1d3557;
+}
+.pr-check-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%; background: #fff;
+    display: none;
+}
+.producto-row.en-carrito .pr-check-dot { display: block; }
+
+.pr-nombre {
+    flex: 1; font-size: .84rem;
+    font-weight: 500; color: var(--text-main);
+    line-height: 1.3;
+}
+.pr-cat-tag {
+    font-size: .67rem; color: var(--text-sub);
+    font-weight: 400;
+}
+.pr-precio {
+    font-size: .83rem; font-weight: 700;
+    color: #1d3557; white-space: nowrap;
+}
+
+/* ── Carrito ────────────────────────────────────────────────── */
+.carrito-panel {
+    border: 1.5px solid var(--border);
+    border-radius: 10px; overflow: hidden;
+    display: flex; flex-direction: column;
+}
+.carrito-header {
+    padding: .55rem .8rem;
+    background: #f8fafc;
+    border-bottom: 1px solid var(--border);
+    font-size: .78rem; font-weight: 700;
+    color: var(--text-main);
+    display: flex; align-items: center;
+    justify-content: space-between;
+}
+.carrito-empty {
+    text-align: center; padding: 2rem 1rem;
+    color: var(--text-sub); font-size: .82rem;
+}
+.carrito-items { overflow-y: auto; flex: 1; max-height: 240px; }
+.carrito-item {
+    display: flex; align-items: flex-start;
+    gap: .5rem; padding: .55rem .7rem;
+    border-bottom: 1px solid var(--border);
+}
+.carrito-item:last-child { border-bottom: none; }
+.ci-nombre {
+    flex: 1; font-size: .82rem;
+    font-weight: 600; color: var(--text-main);
+    line-height: 1.3;
+}
+.ci-nota {
+    font-size: .71rem; color: var(--text-sub);
+    font-weight: 400; margin-top: .2rem;
+}
+.ci-qty {
+    display: flex; align-items: center; gap: .25rem;
+}
+.qty-btn {
+    width: 22px; height: 22px;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    background: #f1f5f9;
+    font-size: .82rem; font-weight: 700;
+    color: var(--text-main);
+    cursor: pointer; display: flex;
+    align-items: center; justify-content: center;
+    transition: background .12s;
+    font-family: inherit;
+    flex-shrink: 0;
+}
+.qty-btn:hover { background: #e2e8f0; }
+.qty-val {
+    font-size: .85rem; font-weight: 800;
+    min-width: 22px; text-align: center;
+    color: var(--text-main);
+}
+.ci-subtotal {
+    font-size: .82rem; font-weight: 800;
+    color: #1d3557; white-space: nowrap;
+    min-width: 52px; text-align: right;
+}
+.ci-remove {
+    background: none; border: none;
+    cursor: pointer; color: #9b2226;
+    padding: 2px; border-radius: 4px;
+    display: flex; transition: background .12s;
+}
+.ci-remove:hover { background: #fee2e2; }
+
+/* Nota input en carrito */
+.ci-nota-input {
+    width: 100%; margin-top: .25rem;
+    font-size: .72rem; font-family: inherit;
+    border: 1px solid var(--border); border-radius: 5px;
+    padding: .2rem .45rem; color: var(--text-sub);
+    background: #fafafa; outline: none;
+}
+.ci-nota-input:focus { border-color: var(--primary); }
+
+.carrito-footer {
+    padding: .65rem .8rem;
+    border-top: 1.5px solid var(--border);
+    background: #f8fafc;
+}
+.total-row {
+    display: flex; justify-content: space-between;
+    align-items: center;
+    font-size: .82rem; color: var(--text-sub);
+    margin-bottom: .2rem;
+}
+.total-row.grand {
+    font-size: .96rem; font-weight: 800;
+    color: var(--text-main); margin-bottom: 0;
+}
+
+/* ── Layout dos columnas para el modal crear ────────────────── */
+.modal-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+@media (max-width: 600px) {
+    .modal-cols { grid-template-columns: 1fr; }
+}
+
+.section-label {
+    font-size: .67rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .09em;
+    color: var(--text-sub);
+    margin: 0 0 .5rem;
+    padding-bottom: .3rem;
+    border-bottom: 1px solid var(--border);
+}
+.section-label:not(:first-child) { margin-top: .9rem; }
+/* Mesa con reserva ACTIVA — cliente ya llegó, listo para pedir */
+.mc-reservada-activa {
+    border-color: #fbbf24;
+    background:   #fffbeb;
+}
+.mc-reservada-activa:hover {
+    border-color: #f59e0b;
+    background:   #fef3c7;
+}
+.mc-reservada-activa.selected {
+    border-color: #d97706;
+    background:   #fde68a;
+    box-shadow: 0 0 0 3px rgba(217,119,6,.15);
+}
+
+/* Badge de estado dentro de la card */
+.mc-con-reserva {
+    background: #fef3c7;
+    color:      #92400e;
+}
+</style>
+
+<!-- ══ FLASH ════════════════════════════════════════════════════════════════ -->
+<div th:if="${flashMensaje != null}"
+     th:classappend="${flashTipo == 'success' ? 'success' : 'error'}"
+     class="alert-flash">
+    <svg th:if="${flashTipo == 'success'}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" style="width:15px;height:15px;flex-shrink:0">
+        <polyline points="20 6 9 17 4 12"/>
+    </svg>
+    <svg th:unless="${flashTipo == 'success'}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" style="width:15px;height:15px;flex-shrink:0">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    <span th:text="${flashMensaje}"></span>
+</div>
+
+<!-- ══ STATS ════════════════════════════════════════════════════════════════ -->
+<div class="stats-pedidos">
+    <div class="stat-chip">
+        <div class="stat-icon si-indigo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+                <rect x="9" y="3" width="6" height="4" rx="1"/>
+            </svg>
+        </div>
+        <div>
+            <div class="stat-value" th:text="${totalActivos}">0</div>
+            <div class="stat-label">Activos</div>
+        </div>
+    </div>
+    <div class="stat-chip">
+        <div class="stat-icon si-blue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+            </svg>
+        </div>
+        <div>
+            <div class="stat-value" th:text="${abiertos}">0</div>
+            <div class="stat-label">Abiertos</div>
+        </div>
+    </div>
+    <div class="stat-chip">
+        <div class="stat-icon si-orange">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/>
+                <path d="M7 2v20"/>
+                <path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/>
+            </svg>
+        </div>
+        <div>
+            <div class="stat-value" th:text="${enCocina}">0</div>
+            <div class="stat-label">En cocina</div>
+        </div>
+    </div>
+    <div class="stat-chip">
+        <div class="stat-icon si-green">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 12l2 2 4-4"/>
+                <circle cx="12" cy="12" r="10"/>
+            </svg>
+        </div>
+        <div>
+            <div class="stat-value" th:text="${servidos}">0</div>
+            <div class="stat-label">Servidos</div>
+        </div>
+    </div>
+    <div class="stat-chip">
+        <div class="stat-icon si-slate">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="1" x2="12" y2="23"/>
+                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+            </svg>
+        </div>
+        <div>
+            <div class="stat-value" th:text="${cobrados}">0</div>
+            <div class="stat-label">Cobrados</div>
+        </div>
+    </div>
+    <div class="stat-chip">
+        <div class="stat-icon si-red">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="15" y1="9" x2="9" y2="15"/>
+                <line x1="9" y1="9" x2="15" y2="15"/>
+            </svg>
+        </div>
+        <div>
+            <div class="stat-value" th:text="${anulados}">0</div>
+            <div class="stat-label">Anulados</div>
+        </div>
+    </div>
+</div>
+
+<!-- ══ CARD PRINCIPAL ═══════════════════════════════════════════════════════ -->
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 style="width:15px;height:15px;vertical-align:middle;margin-right:.35rem">
+                <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+                <rect x="9" y="3" width="6" height="4" rx="1"/>
+                <line x1="9" y1="12" x2="15" y2="12"/>
+                <line x1="9" y1="16" x2="12" y2="16"/>
+            </svg>
+            Gestión de Pedidos
+        </span>
+
+        <div class="toolbar" style="flex:1; justify-content:flex-end;">
+            <form method="get" action="/pedidos" style="display:contents;">
+                <div class="search-wrap">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"/>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    <input type="text" name="busqueda"
+                           th:value="${busqueda}"
+                           placeholder="Nro. pedido o mesa…"
+                           autocomplete="off">
+                </div>
+                <select name="estado" class="filter-select" onchange="this.form.submit()">
+                    <option value="">Todos los estados</option>
+                    <option value="ABIERTO"   th:selected="${estado == 'ABIERTO'}">Abierto</option>
+                    <option value="EN_COCINA" th:selected="${estado == 'EN_COCINA'}">En cocina</option>
+                    <option value="SERVIDO"   th:selected="${estado == 'SERVIDO'}">Servido</option>
+                    <option value="COBRADO"   th:selected="${estado == 'COBRADO'}">Cobrado</option>
+                    <option value="ANULADO"   th:selected="${estado == 'ANULADO'}">Anulado</option>
+                </select>
+                <button type="submit" class="btn btn-secondary btn-sm">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         style="width:13px;height:13px">
+                        <circle cx="11" cy="11" r="8"/>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    Buscar
+                </button>
+            </form>
+
+            <button class="btn btn-create" id="btnNuevoPedido">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:14px;height:14px">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Nuevo pedido
+            </button>
+        </div>
+    </div>
+
+    <!-- TABLA -->
+    <div class="table-responsive">
+        <table>
+            <thead>
+                <tr>
+                    <th style="width:38px">#</th>
+                    <th>Nro. Pedido</th>
+                    <th>Mesa</th>
+                    <th>Estado</th>
+                    <th style="text-align:right">Subtotal</th>
+                    <th style="text-align:right">IGV</th>
+                    <th style="text-align:right">Total</th>
+                    <th>Creado</th>
+                    <th style="width:160px; text-align:center">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr th:if="${#lists.isEmpty(pedidos)}">
+                    <td colspan="9">
+                        <div class="empty-state">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+                                <rect x="9" y="3" width="6" height="4" rx="1"/>
+                            </svg>
+                            <p>No se encontraron pedidos</p>
+                        </div>
+                    </td>
+                </tr>
+
+                <tr th:each="p, stat : ${pedidos}">
+                    <td style="color:var(--text-sub); font-size:.76rem;"
+                        th:text="${page.number * page.size + stat.index + 1}">1</td>
+
+                    <td>
+                        <span class="num-pedido" th:text="${p.numeroPedido}">PED-00000000-0001</span>
+                    </td>
+
+                    <td>
+                        <span class="mesa-pill">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                 style="width:11px;height:11px">
+                                <path d="M3 6h18M3 12h18M3 18h18"/>
+                            </svg>
+                            <span th:text="${p.mesa.area.nombre + ' · ' + p.mesa.numero}">A·1</span>
+                        </span>
+                    </td>
+
+                    <td>
+                        <span class="badge-ped"
+                              th:classappend="${p.estado == 'ABIERTO'   ? 'bp-abierto'  :
+                                               p.estado == 'EN_COCINA' ? 'bp-cocina'   :
+                                               p.estado == 'SERVIDO'   ? 'bp-servido'  :
+                                               p.estado == 'COBRADO'   ? 'bp-cobrado'  :
+                                                                          'bp-anulado'}">
+                            <span class="dot"
+                                  th:classappend="${p.estado == 'ABIERTO'   ? 'dot-abierto'  :
+                                                   p.estado == 'EN_COCINA' ? 'dot-cocina'   :
+                                                   p.estado == 'SERVIDO'   ? 'dot-servido'  :
+                                                   p.estado == 'COBRADO'   ? 'dot-cobrado'  :
+                                                                              'dot-anulado'}">
+                            </span>
+                            <span th:text="${p.estado == 'EN_COCINA' ? 'En cocina' : p.estado}">ESTADO</span>
+                        </span>
+                    </td>
+
+                    <td style="text-align:right; font-size:.85rem; color:var(--text-sub)">
+                        S/ <span th:text="${#numbers.formatDecimal(p.subtotal, 1, 2)}">0.00</span>
+                    </td>
+                    <td style="text-align:right; font-size:.85rem; color:var(--text-sub)">
+                        S/ <span th:text="${#numbers.formatDecimal(p.igv, 1, 2)}">0.00</span>
+                    </td>
+                    <td style="text-align:right">
+                        <span class="total-cell">
+                            S/ <span th:text="${#numbers.formatDecimal(p.total, 1, 2)}">0.00</span>
+                        </span>
+                    </td>
+
+                    <td style="font-size:.77rem; color:var(--text-sub); white-space:nowrap"
+                        th:text="${#temporals.format(p.creadoEn, 'dd/MM/yy HH:mm')}">01/01/25 12:00</td>
+
+                    <td>
+                        <div class="actions-cell">
+                            <!-- Ver detalle -->
+                            <a th:href="@{/pedidos/{id}(id=${p.id})}"
+                               class="btn btn-secondary btn-sm" title="Ver detalle">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                     style="width:13px;height:13px">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                                Ver
+                            </a>
+
+                            <!-- Anular — solo si no está cobrado/anulado -->
+                            <button th:if="${p.estado != 'COBRADO' and p.estado != 'ANULADO'}"
+                                    class="btn btn-delete btn-sm btn-anular-pedido"
+                                    th:data-id="${p.id}"
+                                    th:data-numero="${p.numeroPedido}"
+                                    title="Anular pedido">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                     style="width:13px;height:13px">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <line x1="15" y1="9" x2="9" y2="15"/>
+                                    <line x1="9" y1="9" x2="15" y2="15"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- PAGINACIÓN -->
+    <div th:if="${page.totalPages > 1}"
+         style="padding:.75rem 1.25rem; border-top:1px solid var(--border);">
+        <div class="pagination">
+            <a th:href="@{/pedidos(pagina=${page.number - 1}, busqueda=${busqueda}, estado=${estado})}"
+               th:classappend="${page.first ? 'disabled' : ''}"
+               class="page-link">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:12px;height:12px"><polyline points="15 18 9 12 15 6"/></svg>
+            </a>
+            <th:block th:each="i : ${#numbers.sequence(0, page.totalPages - 1)}">
+                <a th:href="@{/pedidos(pagina=${i}, busqueda=${busqueda}, estado=${estado})}"
+                   th:text="${i + 1}"
+                   th:classappend="${i == page.number ? 'active' : ''}"
+                   class="page-link">1</a>
+            </th:block>
+            <a th:href="@{/pedidos(pagina=${page.number + 1}, busqueda=${busqueda}, estado=${estado})}"
+               th:classappend="${page.last ? 'disabled' : ''}"
+               class="page-link">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:12px;height:12px"><polyline points="9 18 15 12 9 6"/></svg>
+            </a>
+        </div>
+        <p class="pag-info">
+            Mostrando
+            <strong th:text="${page.number * page.size + 1}">1</strong>–<strong
+               th:text="${page.number * page.size + #lists.size(pedidos)}">10</strong>
+            de <strong th:text="${page.totalElements}">0</strong> pedidos
+        </p>
+    </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     MODAL: CREAR PEDIDO
+══════════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalCrear">
+    <div class="modal modal-crear">
+        <div class="modal-header">
+            <span class="modal-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:15px;height:15px;vertical-align:middle;margin-right:.35rem">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Nuevo pedido
+            </span>
+            <button class="modal-close" onclick="cerrarModal('modalCrear')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:17px;height:17px">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+
+        <form th:action="@{/pedidos/crear}" method="post" id="formCrear" novalidate>
+            <input type="hidden" th:name="${_csrf?.parameterName}" th:value="${_csrf?.token}"/>
+            <!-- Campos hidden para la mesa -->
+            <input type="hidden" name="mesaId" id="mesaIdHidden">
+            <!-- Campos de ítems se generan dinámicamente desde JS -->
+            <div id="itemsHiddenContainer"></div>
+
+            <div class="modal-body">
+
+                <!-- Buscador de mesas -->
+                 <div class="section-label">Selecciona la mesa</div>
+                <div style="position:relative; margin-bottom:.5rem;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        style="position:absolute;left:.6rem;top:50%;transform:translateY(-50%);
+                                width:13px;height:13px;color:var(--text-sub);pointer-events:none">
+                        <circle cx="11" cy="11" r="8"/>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    <input type="text" id="buscarMesa"
+                        placeholder="Buscar área o número de mesa…"
+                        autocomplete="off"
+                        style="width:100%; padding:.42rem .75rem .42rem 2rem;
+                                font-size:.82rem; font-family:inherit;
+                                border:1.5px solid var(--border); border-radius:8px;
+                                background:var(--surface); color:var(--text-main);
+                                outline:none; box-sizing:border-box;">
+                </div>
+
+                <!-- Selección de mesa -->
+                <div class="mesas-grid" id="mesasGrid">
+                    <div th:each="m : ${mesasDisponibles}"
+                        class="mesa-card"
+                        th:classappend="${m.estado == 'RESERVADA' ? 'mc-reservada-activa' : ''}"
+                        th:data-id="${m.id}"
+                        th:data-estado="${m.estado}"
+                        th:data-label="${m.area.nombre + ' · ' + m.numero}">
+                        <div class="mesa-card-area" th:text="${m.area.nombre}">ÁREA</div>
+                        <div class="mesa-card-num" th:text="${m.numero}">1</div>
+                        <span class="mesa-card-estado"
+                            th:classappend="${m.estado == 'LIBRE' ? 'mc-libre' : 'mc-reservada'}"
+                            th:text="${m.estado == 'RESERVADA' ? 'Con reserva' : 'LIBRE'}"></span>
+                    </div>
+                    <div th:if="${#lists.isEmpty(mesasDisponibles)}"
+                         style="grid-column:1/-1; text-align:center; color:var(--text-sub); font-size:.82rem; padding:1rem;">
+                        No hay mesas disponibles en este momento.
+                    </div>
+                </div>
+
+                <!-- Aviso si la mesa ya tiene pedido activo -->
+                <div class="aviso-pedido-activo" id="avisoMesaOcupada">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         style="width:16px;height:16px;flex-shrink:0">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="12" y1="8" x2="12" y2="12"/>
+                        <line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </svg>
+                    <span>Esta mesa ya tiene el pedido activo
+                        <a id="linkPedidoActivo" href="#">ver pedido</a>.
+                        Para agregar platos usa el botón <strong>Agregar ítems</strong> desde el detalle.
+                    </span>
+                </div>
+
+                <div class="modal-cols" style="margin-top:.9rem;">
+                    <!-- Columna izquierda: buscador de productos -->
+                    <div>
+                        <div class="section-label">Elige los productos</div>
+                        <div class="productos-panel">
+                            <div class="productos-search">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="11" cy="11" r="8"/>
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                                </svg>
+                                <input type="text" id="buscarProducto" placeholder="Buscar producto…" autocomplete="off">
+                            </div>
+                            <div class="categorias-tabs" id="categoriasTabs">
+                                <button type="button" class="cat-tab active" data-cat="todos">Todos</button>
+                                <button type="button" class="cat-tab"
+                                        th:each="cat : ${categorias}"
+                                        th:data-cat="${cat.id}"
+                                        th:text="${cat.nombre}">Cat</button>
+                            </div>
+                            <div class="productos-lista" id="productoLista">
+                                <div th:each="p : ${productos}" class="producto-row"
+                                     th:data-id="${p.id}"
+                                     th:data-nombre="${p.nombre}"
+                                     th:data-precio="${p.precio}"
+                                     th:data-cat="${p.categoria.id}">
+                                    <div class="pr-check">
+                                        <div class="pr-check-dot"></div>
+                                    </div>
+                                    <div class="pr-nombre">
+                                        <span th:text="${p.nombre}">Producto</span>
+                                        <div class="pr-cat-tag" th:text="${p.categoria.nombre}">Cat</div>
+                                    </div>
+                                    <div class="pr-precio">
+                                        S/ <span th:text="${#numbers.formatDecimal(p.precio, 1, 2)}">0.00</span>
+                                    </div>
+                                </div>
+                                <div id="productoVacio"
+                                     style="display:none; text-align:center; padding:1.5rem; color:var(--text-sub); font-size:.82rem;">
+                                    Sin resultados
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Columna derecha: carrito -->
+                    <div>
+                        <div class="section-label">
+                            Resumen del pedido
+                            <span id="carritoCount"
+                                  style="font-weight:800; color:#1d3557;"></span>
+                        </div>
+                        <div class="carrito-panel">
+                            <div class="carrito-header">
+                                <span>Ítems seleccionados</span>
+                                <button type="button" class="btn btn-secondary btn-sm"
+                                        onclick="limpiarCarrito()"
+                                        style="font-size:.7rem; padding:.2rem .5rem;">
+                                    Limpiar
+                                </button>
+                            </div>
+                            <div id="carritoVacio" class="carrito-empty">
+                                Selecciona productos del panel izquierdo
+                            </div>
+                            <div class="carrito-items" id="carritoItems" style="display:none;"></div>
+                            <div class="carrito-footer" id="carritoFooter" style="display:none;">
+                                <div class="total-row">
+                                    <span>Subtotal</span>
+                                    <span>S/ <span id="footerSubtotal">0.00</span></span>
+                                </div>
+                                <div class="total-row">
+                                    <span>IGV (18%)</span>
+                                    <span>S/ <span id="footerIgv">0.00</span></span>
+                                </div>
+                                <div class="total-row grand">
+                                    <span>Total</span>
+                                    <span>S/ <span id="footerTotal">0.00</span></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div><!-- /modal-body -->
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="cerrarModal('modalCrear')">
+                    Cancelar
+                </button>
+                <button type="submit" class="btn btn-create" id="btnCrearSubmit" disabled>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         style="width:14px;height:14px">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    Crear pedido
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     MODAL: CONFIRMAR ANULAR PEDIDO
+══════════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalAnular">
+    <div class="modal" style="max-width:400px;">
+        <div class="modal-header">
+            <span class="modal-title">Confirmar anulación</span>
+            <button class="modal-close" onclick="cerrarModal('modalAnular')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:17px;height:17px">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+        <div style="padding:1.4rem 1.25rem .9rem; text-align:center;">
+            <div style="width:50px;height:50px;border-radius:50%;background:#fee2e2;
+                        display:flex;align-items:center;justify-content:center;margin:0 auto .9rem;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#991b1b" stroke-width="2"
+                     style="width:22px;height:22px">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+                </svg>
+            </div>
+            <h3 style="font-size:.93rem;font-weight:700;margin-bottom:.4rem;">¿Anular este pedido?</h3>
+            <p style="font-size:.83rem;color:var(--text-sub);">
+                El pedido <strong id="anularNumeroPedido"></strong> será anulado y todos sus ítems
+                marcados como cancelados. La mesa quedará libre.
+            </p>
+        </div>
+        <form id="formAnular" method="post">
+            <input type="hidden" th:name="${_csrf?.parameterName}" th:value="${_csrf?.token}"/>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="cerrarModal('modalAnular')">
+                    Cancelar
+                </button>
+                <button type="submit" class="btn btn-delete">
+                    Sí, anular pedido
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════════════════════════════════════════════ -->
+<script>
+    let catActiva = 'todos';
+document.addEventListener('DOMContentLoaded', function () {
+
+    /* ── Carrito de productos ────────────────────────────────────────────────── */
+    // carrito: Map<productoId, { id, nombre, precio, cantidad, nota }>
+    const carrito = new Map();
+
+    function formatPEN(n) {
+        return n.toFixed(2);
+    }
+
+    function renderCarrito() {
+        const empty   = document.getElementById('carritoVacio');
+        const items   = document.getElementById('carritoItems');
+        const footer  = document.getElementById('carritoFooter');
+        const count   = document.getElementById('carritoCount');
+        const submit  = document.getElementById('btnCrearSubmit');
+
+        if (carrito.size === 0) {
+            empty.style.display  = '';
+            items.style.display  = 'none';
+            footer.style.display = 'none';
+            if (count)  count.textContent = '';
+            if (submit) submit.disabled = true;
+            return;
+        }
+
+        empty.style.display  = 'none';
+        items.style.display  = '';
+        footer.style.display = '';
+
+        if (count) count.textContent = '(' + carrito.size + ')';
+
+        let subtotal = 0;
+        items.innerHTML = '';
+
+        carrito.forEach((item, pid) => {
+            const lineaSubtotal = item.precio * item.cantidad;
+            subtotal += lineaSubtotal;
+
+            const div = document.createElement('div');
+            div.className = 'carrito-item';
+            div.dataset.pid = pid;
+            div.innerHTML = `
+                <div style="flex:1; min-width:0;">
+                    <div class="ci-nombre">${item.nombre}</div>
+                    <input class="ci-nota-input" type="text"
+                           placeholder="Nota para cocina (opcional)"
+                           value="${item.nota || ''}"
+                           oninput="actualizarNota(${pid}, this.value)">
+                </div>
+                <div class="ci-qty">
+                    <button type="button" class="qty-btn" onclick="cambiarCantidad(${pid}, -1)">−</button>
+                    <span class="qty-val">${item.cantidad}</span>
+                    <button type="button" class="qty-btn" onclick="cambiarCantidad(${pid}, 1)">+</button>
+                </div>
+                <div class="ci-subtotal">S/ ${formatPEN(lineaSubtotal)}</div>
+                <button type="button" class="ci-remove" onclick="quitarDelCarrito(${pid})" title="Quitar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                         style="width:13px;height:13px">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>`;
+            items.appendChild(div);
+        });
+
+        const igv   = subtotal * 0.18;
+        const total = subtotal + igv;
+        document.getElementById('footerSubtotal').textContent = formatPEN(subtotal);
+        document.getElementById('footerIgv').textContent      = formatPEN(igv);
+        document.getElementById('footerTotal').textContent    = formatPEN(total);
+
+        // Habilitar submit si hay mesa y hay ítems
+        actualizarEstadoSubmit();
+    }
+
+    function actualizarEstadoSubmit() {
+        const submit   = document.getElementById('btnCrearSubmit');
+        const mesaId   = document.getElementById('mesaIdHidden').value;
+        const hayItems = carrito.size > 0;
+        const aviso    = document.getElementById('avisoMesaOcupada');
+        const mesaOcupada = aviso.classList.contains('show');
+        if (submit) submit.disabled = !(mesaId && hayItems && !mesaOcupada);
+    }
+
+    window.cambiarCantidad = function(pid, delta) {
+        const item = carrito.get(pid);
+        if (!item) return;
+        item.cantidad = Math.max(1, item.cantidad + delta);
+        carrito.set(pid, item);
+        renderCarrito();
+    };
+
+    window.quitarDelCarrito = function(pid) {
+        carrito.delete(pid);
+        // Deseleccionar la fila
+        const row = document.querySelector(`.producto-row[data-id="${pid}"]`);
+        if (row) row.classList.remove('en-carrito');
+        renderCarrito();
+    };
+
+    window.actualizarNota = function(pid, nota) {
+        const item = carrito.get(pid);
+        if (item) { item.nota = nota; carrito.set(pid, item); }
+    };
+
+    window.limpiarCarrito = function() {
+        carrito.clear();
+        document.querySelectorAll('.producto-row.en-carrito')
+                .forEach(r => r.classList.remove('en-carrito'));
+        renderCarrito();
+    };
+
+    // Click en fila de producto → toggle carrito
+    document.querySelectorAll('.producto-row').forEach(row => {
+        row.addEventListener('click', function () {
+            const pid    = parseInt(this.dataset.id);
+            const nombre = this.dataset.nombre;
+            const precio = parseFloat(this.dataset.precio);
+
+            if (carrito.has(pid)) {
+                carrito.delete(pid);
+                this.classList.remove('en-carrito');
+            } else {
+                carrito.set(pid, { id: pid, nombre, precio, cantidad: 1, nota: '' });
+                this.classList.add('en-carrito');
+            }
+            renderCarrito();
+        });
+    });
+
+    /* ── Búsqueda de productos ──────────────────────────────────────────────── */
+    
+
+    function filtrarProductos() {
+        const txt = document.getElementById('buscarProducto').value.toLowerCase().trim();
+        let visible = 0;
+        document.querySelectorAll('.producto-row').forEach(row => {
+            const nombre  = row.dataset.nombre.toLowerCase();
+            const cat     = row.dataset.cat;
+            const matchTxt = txt === '' || nombre.includes(txt);
+            const matchCat = catActiva === 'todos' || cat === catActiva;
+            if (matchTxt && matchCat) {
+                row.style.display = '';
+                visible++;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+        const vacio = document.getElementById('productoVacio');
+        if (vacio) vacio.style.display = visible === 0 ? '' : 'none';
+    }
+
+    document.getElementById('buscarProducto').addEventListener('input', filtrarProductos);
+
+    document.querySelectorAll('.cat-tab').forEach(tab => {
+        tab.addEventListener('click', function () {
+            document.querySelectorAll('.cat-tab').forEach(t => t.classList.remove('active'));
+            this.classList.add('active');
+            catActiva = this.dataset.cat;
+            filtrarProductos();
+        });
+    });
+
+    /* ── Selección de mesa ──────────────────────────────────────────────────── */
+    //Simplificado — ya no hay que verificar si es RESERVADA
+    document.querySelectorAll('.mesa-card').forEach(card => {
+        card.addEventListener('click', async function () {
+            if (this.classList.contains('mesa-ocupada')) return;
+
+            document.querySelectorAll('.mesa-card').forEach(c => c.classList.remove('selected'));
+            this.classList.add('selected');
+
+            const mesaId = this.dataset.id;
+            document.getElementById('mesaIdHidden').value = mesaId;
+
+            const aviso = document.getElementById('avisoMesaOcupada');
+            aviso.classList.remove('show');
+
+            try {
+                const resp = await fetch('/pedidos/api/mesa/' + mesaId + '/pedido-activo');
+                const data = await resp.json();
+                if (data.existe) {
+                    aviso.classList.add('show');
+                    const link = document.getElementById('linkPedidoActivo');
+                    if (link) {
+                        link.textContent = data.numeroPedido;
+                        link.href = '/pedidos/' + data.pedidoId;
+                    }
+                    document.getElementById('mesaIdHidden').value = '';
+                }
+            } catch (e) { /* ignorar */ }
+
+            actualizarEstadoSubmit();
+        });
+    });
+    /* ── Submit: inyectar hidden fields del carrito ─────────────────────────── */
+    document.getElementById('formCrear').addEventListener('submit', function () {
+        const container = document.getElementById('itemsHiddenContainer');
+        container.innerHTML = '';
+        carrito.forEach((item, pid) => {
+            const inp1 = document.createElement('input');
+            inp1.type = 'hidden'; inp1.name = 'productoIds'; inp1.value = pid;
+            const inp2 = document.createElement('input');
+            inp2.type = 'hidden'; inp2.name = 'cantidades'; inp2.value = item.cantidad;
+            const inp3 = document.createElement('input');
+            inp3.type = 'hidden'; inp3.name = 'notas'; inp3.value = item.nota || '';
+            container.appendChild(inp1);
+            container.appendChild(inp2);
+            container.appendChild(inp3);
+        });
+    });
+
+    /* ── Modales ────────────────────────────────────────────────────────────── */
+    window.cerrarModal = function(id) {
+        document.getElementById(id).classList.remove('open');
+        if (id === 'modalCrear') {
+            limpiarCarrito();
+            document.querySelectorAll('.mesa-card').forEach(c => {
+                c.classList.remove('selected');
+                c.style.display = ''; // ← restaurar cards ocultas por el buscador
+            });
+            document.getElementById('mesaIdHidden').value = '';
+            document.getElementById('avisoMesaOcupada').classList.remove('show');
+            document.getElementById('buscarMesa').value = '';       // ← limpiar buscador
+            document.getElementById('buscarProducto').value = '';   // ← limpiar buscador productos
+            catActiva = 'todos';                                    // ← resetear categoría activa
+            document.querySelectorAll('.cat-tab').forEach(t => t.classList.remove('active'));
+            document.querySelector('.cat-tab[data-cat="todos"]').classList.add('active');
+            document.querySelectorAll('.producto-row').forEach(r => r.style.display = ''); // ← restaurar
+            const vacio = document.getElementById('productoVacio');
+            if (vacio) vacio.style.display = 'none';
+        }
+    };
+
+    document.querySelectorAll('.modal-overlay').forEach(ov => {
+        ov.addEventListener('click', e => {
+            if (e.target === ov) cerrarModal(ov.id);
+        });
+    });
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape')
+            document.querySelectorAll('.modal-overlay.open')
+                    .forEach(m => cerrarModal(m.id));
+    });
+
+    /* ── Botón nuevo pedido ─────────────────────────────────────────────────── */
+    document.getElementById('btnNuevoPedido').addEventListener('click', () => {
+        document.getElementById('modalCrear').classList.add('open');
+    });
+
+    /* ── Botones anular pedido ──────────────────────────────────────────────── */
+    document.querySelectorAll('.btn-anular-pedido').forEach(btn => {
+        btn.addEventListener('click', function () {
+            document.getElementById('anularNumeroPedido').textContent = this.dataset.numero;
+            document.getElementById('formAnular').action = '/pedidos/' + this.dataset.id + '/anular';
+            document.getElementById('modalAnular').classList.add('open');
+        });
+    });
+
+    /* ── Flash auto-ocultar ─────────────────────────────────────────────────── */
+    const flash = document.querySelector('.alert-flash');
+    if (flash) {
+        setTimeout(() => {
+            flash.style.transition = 'opacity .4s';
+            flash.style.opacity = '0';
+            setTimeout(() => flash.remove(), 400);
+        }, 4500);
+    }
+
+    // Buscador de mesas
+    document.getElementById('buscarMesa').addEventListener('input', function () {
+        const txt = this.value.toLowerCase().trim();
+        document.querySelectorAll('.mesa-card').forEach(card => {
+            const label = card.dataset.label.toLowerCase();
+            card.style.display = (txt === '' || label.includes(txt)) ? '' : 'none';
+        });
+    });
+
+    /* ── INTERCEPTOR DE ACCESO DIRECTO DEL DASHBOARD ────────────────────────── */
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('accion') === 'nuevo') {
+        const modalCrear = document.getElementById('modalCrear');
+        if (modalCrear) {
+            modalCrear.classList.add('open');
+            
+            // Limpia la barra de direcciones (?accion=nuevo) de forma silenciosa
+            const urlLimpia = window.location.protocol + "//" + window.location.host + window.location.pathname;
+            window.history.replaceState({ path: urlLimpia }, '', urlLimpia);
+        }
+    }
+});
+</script>
+
+</main>
+</body>
+</html>

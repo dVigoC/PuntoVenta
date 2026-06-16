@@ -1,0 +1,1220 @@
+<!DOCTYPE html>
+<html lang="es"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      th:replace="~{layout :: layout('Empleados', ~{::main})}">
+<body>
+<main>
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     ESTILOS LOCALES
+══════════════════════════════════════════════════════════════════════ -->
+<style>
+    /* ── Stats bar ───────────────────────────────────────────────── */
+    .stats-bar {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: .75rem;
+        margin-bottom: 1.25rem;
+    }
+    .stat-chip {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: .9rem 1.1rem;
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+        box-shadow: var(--shadow);
+    }
+    .stat-icon {
+        width: 40px; height: 40px;
+        border-radius: 10px;
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+    }
+    .stat-icon svg { width: 19px; height: 19px; }
+    .stat-icon.blue   { background: #dbeafe; color: #1d4ed8; }
+    .stat-icon.green  { background: #dcfce7; color: #15803d; }
+    .stat-icon.red    { background: #fee2e2; color: #b91c1c; }
+    .stat-value { font-size: 1.4rem; font-weight: 700; line-height: 1; color: var(--text-main); }
+    .stat-label { font-size: .72rem; color: var(--text-sub); margin-top: 3px; }
+
+    /* ── Filtros toolbar ─────────────────────────────────────────── */
+    .toolbar {
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+        flex-wrap: wrap;
+    }
+    .search-wrap {
+        position: relative;
+        flex: 1;
+        min-width: 200px;
+        max-width: 320px;
+    }
+    .search-wrap svg {
+        position: absolute; left: .7rem; top: 50%;
+        transform: translateY(-50%);
+        width: 15px; height: 15px;
+        color: var(--text-sub);
+        pointer-events: none;
+    }
+    .search-wrap input {
+        width: 100%;
+        padding: .5rem .8rem .5rem 2.2rem;
+        font-size: .86rem;
+        font-family: inherit;
+        border: 1.5px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface);
+        color: var(--text-main);
+        outline: none;
+        transition: border-color .2s, box-shadow .2s;
+    }
+    .search-wrap input:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(29,53,87,.07);
+    }
+    .filter-select {
+        padding: .48rem .8rem;
+        font-size: .84rem;
+        font-family: inherit;
+        border: 1.5px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface);
+        color: var(--text-main);
+        cursor: pointer;
+        outline: none;
+        min-width: 160px;
+        transition: border-color .2s;
+    }
+    .filter-select:focus { border-color: var(--primary); }
+
+    /* ── Empleado cell ───────────────────────────────────────────── */
+    .emp-cell {
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+    }
+    .emp-avatar {
+        width: 38px; height: 38px;
+        border-radius: 50%;
+        background: #1d3557;
+        display: flex; align-items: center; justify-content: center;
+        font-size: .78rem; font-weight: 700;
+        color: #fff;
+        flex-shrink: 0;
+        letter-spacing: .02em;
+    }
+    .emp-nombre { font-weight: 600; font-size: .87rem; color: var(--text-main); line-height: 1.2; }
+    .emp-dni    { font-size: .73rem; color: var(--text-sub); margin-top: 1px; font-family: 'Courier New', monospace; }
+
+    .cargo-pill {
+        display: inline-flex; align-items: center;
+        padding: .2rem .65rem;
+        border-radius: 20px;
+        font-size: .71rem; font-weight: 700;
+        background: #e0e7ff; color: #3730a3;
+        text-transform: uppercase; letter-spacing: .05em;
+        white-space: nowrap;
+    }
+
+    .actions-cell { display: flex; gap: .4rem; align-items: center; justify-content: center; }
+
+    /* ── Empty state ─────────────────────────────────────────────── */
+    .empty-state {
+        text-align: center;
+        padding: 3.5rem 1rem;
+        color: var(--text-sub);
+    }
+    .empty-state svg { width: 52px; height: 52px; opacity: .25; margin-bottom: .85rem; }
+    .empty-state p { font-size: .9rem; }
+
+    /* ── Paginación info ─────────────────────────────────────────── */
+    .pag-info {
+        font-size: .78rem; color: var(--text-sub);
+        text-align: center; padding-top: .3rem;
+    }
+
+    /* ══════════════════════════════════════════════════════════════
+       MODALES — GRID Y SECCIONES
+    ══════════════════════════════════════════════════════════════ */
+    .modal { max-width: 720px; }
+    .modal .modal-body {
+        max-height: calc(85vh - 120px);
+        overflow-y: auto;
+    }
+
+    .form-grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0 1rem;
+    }
+    .form-grid-2 .full { grid-column: 1 / -1; }
+    .form-grid-3 {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 0 1rem;
+    }
+    .form-grid-3 .full { grid-column: 1 / -1; }
+
+    .form-section-label {
+        font-size: .68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .09em;
+        color: var(--text-sub);
+        margin: 1rem 0 .6rem;
+        padding-bottom: .35rem;
+        border-bottom: 1px solid var(--border);
+    }
+    .form-section-label:first-child { margin-top: 0; }
+
+    /* Switch */
+    .switch-row { display: flex; align-items: center; gap: .6rem; padding: .4rem 0; }
+    .switch { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .switch-slider {
+        position: absolute; inset: 0;
+        background: #cbd5e1; border-radius: 22px;
+        cursor: pointer; transition: background .2s;
+    }
+    .switch-slider::before {
+        content: '';
+        position: absolute;
+        width: 16px; height: 16px;
+        left: 3px; top: 3px;
+        background: #fff; border-radius: 50%;
+        transition: transform .2s;
+    }
+    .switch input:checked + .switch-slider { background: #344e41; }
+    .switch input:checked + .switch-slider::before { transform: translateX(18px); }
+    .switch-label { font-size: .86rem; font-weight: 500; color: var(--text-main); }
+
+    /* Campo bloqueado (DNI en edición) */
+    .field-locked {
+        background: #f3f4f6 !important;
+        cursor: not-allowed !important;
+        color: #6b7280 !important;
+        border-color: #e5e7eb !important;
+    }
+    .lock-hint {
+        font-size: .71rem;
+        color: var(--text-sub);
+        margin-top: .25rem;
+        display: flex; align-items: center; gap: .3rem;
+    }
+    .lock-hint svg { width: 11px; height: 11px; }
+
+    /* Confirm modal */
+    .confirm-modal { max-width: 400px; }
+    .confirm-icon {
+        width: 52px; height: 52px;
+        border-radius: 50%;
+        background: #fee2e2;
+        display: flex; align-items: center; justify-content: center;
+        margin: 0 auto 1rem;
+    }
+    .confirm-icon svg { width: 24px; height: 24px; color: #991b1b; }
+    .confirm-body { text-align: center; padding: 1.5rem 1.25rem 1rem; }
+    .confirm-body h3 { font-size: .95rem; font-weight: 700; margin-bottom: .4rem; }
+    .confirm-body p  { font-size: .84rem; color: var(--text-sub); }
+
+    /* Fecha inputs */
+    input[type="date"].form-control {
+        cursor: pointer;
+    }
+
+    /* Validación en tiempo real del DNI */
+    .field-checking { border-color: #f59e0b !important; }
+    .field-ok       { border-color: #22c55e !important; }
+    .field-error    { border-color: var(--btn-delete) !important; }
+    .feedback-msg {
+        font-size: .74rem;
+        margin-top: .25rem;
+        display: none;
+    }
+    .feedback-msg.show { display: block; }
+    .feedback-msg.ok   { color: #15803d; }
+    .feedback-msg.err  { color: #991b1b; }
+</style>
+
+<!-- ══ FLASH MESSAGES ══════════════════════════════════════════════════════ -->
+<div th:if="${flashMensaje != null}"
+     th:classappend="${flashTipo == 'success' ? 'success' : 'error'}"
+     class="alert-flash">
+    <svg th:if="${flashTipo == 'success'}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" style="width:16px;height:16px;flex-shrink:0">
+        <polyline points="20 6 9 17 4 12"/>
+    </svg>
+    <svg th:unless="${flashTipo == 'success'}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" style="width:16px;height:16px;flex-shrink:0">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    <span th:text="${flashMensaje}"></span>
+</div>
+
+<!-- ══ STATS BAR ═══════════════════════════════════════════════════════════ -->
+<div class="stats-bar">
+    <div class="stat-chip">
+        <div class="stat-icon blue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
+            </svg>
+        </div>
+        <div>
+            <div class="stat-value" th:text="${totalEmpleados}">0</div>
+            <div class="stat-label">Total empleados</div>
+        </div>
+    </div>
+    <div class="stat-chip">
+        <div class="stat-icon green">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 12l2 2 4-4"/>
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+            </svg>
+        </div>
+        <div>
+            <div class="stat-value" th:text="${activos}">0</div>
+            <div class="stat-label">Activos</div>
+        </div>
+    </div>
+    <div class="stat-chip">
+        <div class="stat-icon red">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+            </svg>
+        </div>
+        <div>
+            <div class="stat-value" th:text="${inactivos}">0</div>
+            <div class="stat-label">Inactivos</div>
+        </div>
+    </div>
+</div>
+
+<!-- ══ CARD PRINCIPAL ══════════════════════════════════════════════════════ -->
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 style="width:16px;height:16px;vertical-align:middle;margin-right:.35rem">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
+            </svg>
+            Gestión de Empleados
+        </span>
+
+        <!-- TOOLBAR -->
+        <div class="toolbar" style="flex:1; justify-content:flex-end;">
+            <form method="get" action="/empleados" style="display:contents;">
+                <!-- Buscador -->
+                <div class="search-wrap">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"/>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    <input type="text" name="busqueda"
+                           th:value="${busqueda}"
+                           placeholder="Nombre, DNI, cargo…"
+                           autocomplete="off">
+                </div>
+                <!-- Filtro cargo -->
+                <select name="estado" class="filter-select" onchange="this.form.submit()">
+                    <option value="activos"   th:selected="${estado == 'activos'}">Solo activos</option>
+                    <option value="inactivos" th:selected="${estado == 'inactivos'}">Solo inactivos</option>
+                    <option value="todos"     th:selected="${estado == 'todos'}">Todos</option>
+                </select>
+                <button type="submit" class="btn btn-secondary btn-sm">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         style="width:14px;height:14px">
+                        <circle cx="11" cy="11" r="8"/>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    Buscar
+                </button>
+            </form>
+
+            <!-- Botón nuevo empleado -->
+            <button class="btn btn-create" id="btnNuevoEmpleado">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:15px;height:15px">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Nuevo empleado
+            </button>
+        </div>
+    </div>
+
+    <!-- TABLA -->
+    <div class="table-responsive">
+        <table>
+            <thead>
+                <tr>
+                    <th style="width:36px">#</th>
+                    <th>Empleado</th>
+                    <th>Cargo</th>
+                    <th>Contacto</th>
+                    <th>Ingreso</th>
+                    <th>Estado</th>
+                    <th style="width:130px; text-align:center;">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Sin resultados -->
+                <tr th:if="${#lists.isEmpty(empleados)}">
+                    <td colspan="7">
+                        <div class="empty-state">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                                <circle cx="12" cy="7" r="4"/>
+                            </svg>
+                            <p>No se encontraron empleados</p>
+                        </div>
+                    </td>
+                </tr>
+
+                <!-- Filas -->
+                <tr th:each="e, stat : ${empleados}">
+                    <td style="color:var(--text-sub); font-size:.78rem;"
+                        th:text="${page.number * page.size + stat.index + 1}">1</td>
+
+                    <!-- Empleado: avatar + nombre + DNI -->
+                    <td>
+                        <div class="emp-cell">
+                            <div class="emp-avatar" th:text="${e.iniciales}">AB</div>
+                            <div>
+                                <div class="emp-nombre" th:text="${e.nombreCompleto}">Nombre</div>
+                                <div class="emp-dni" th:text="'DNI: ' + ${e.dni}">DNI</div>
+                            </div>
+                        </div>
+                    </td>
+
+                    <!-- Cargo -->
+                    <td>
+                        <span class="cargo-pill" th:text="${e.cargo}">CARGO</span>
+                    </td>
+
+                    <!-- Contacto: teléfono y email -->
+                    <td style="font-size:.83rem; color:var(--text-main); line-height:1.6;">
+                        <div th:if="${e.telefono != null}" th:text="${e.telefono}">—</div>
+                        <div th:if="${e.email != null}"
+                             style="color:var(--text-sub); font-size:.76rem;"
+                             th:text="${e.email}">—</div>
+                        <div th:if="${e.telefono == null and e.email == null}"
+                             style="color:var(--text-sub)">—</div>
+                    </td>
+
+                    <!-- Fecha de ingreso -->
+                    <td style="font-size:.83rem; white-space:nowrap;"
+                        th:text="${#temporals.format(e.fechaIngreso, 'dd/MM/yyyy')}">—</td>
+
+                    <!-- Estado -->
+                    <td>
+                        <span class="badge"
+                              th:classappend="${e.activo ? 'badge-active' : 'badge-inactive'}"
+                              th:text="${e.activo ? 'Activo' : 'Inactivo'}">—</span>
+                    </td>
+
+                    <!-- Acciones -->
+                    <td>
+                        <div class="actions-cell">
+                            <!-- Editar -->
+                            <button class="btn btn-edit btn-sm btn-editar-emp"
+                                    th:data-id="${e.id}"
+                                    th:data-nombres="${e.nombres}"
+                                    th:data-apellidos="${e.apellidos}"
+                                    th:data-dni="${e.dni}"
+                                    th:data-telefono="${e.telefono != null ? e.telefono : ''}"
+                                    th:data-direccion="${e.direccion != null ? e.direccion : ''}"
+                                    th:data-email="${e.email != null ? e.email : ''}"
+                                    th:data-cargo="${e.cargo}"
+                                    th:data-fechaingreso="${e.fechaIngreso}"
+                                    th:data-fechacese="${e.fechaCese != null ? e.fechaCese : ''}"
+                                    th:data-activo="${e.activo}"
+                                    title="Editar empleado">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                     style="width:14px;height:14px">
+                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                </svg>
+                                Editar
+                            </button>
+
+                            <!-- Desactivar -->
+                            <button class="btn btn-delete btn-sm btn-desactivar-emp"
+                                    th:data-id="${e.id}"
+                                    th:data-nombre="${e.nombreCompleto}"
+                                    title="Desactivar empleado">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                     style="width:14px;height:14px">
+                                    <polyline points="3 6 5 6 21 6"/>
+                                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                                    <path d="M10 11v6"/><path d="M14 11v6"/>
+                                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- PAGINACIÓN -->
+    <div th:if="${page.totalPages > 1}"
+         style="padding:.75rem 1.25rem; border-top:1px solid var(--border);">
+        <div class="pagination">
+            <a th:href="@{/empleados(pagina=${page.number - 1}, busqueda=${busqueda}, cargo=${cargo}, estado=${estado})}"
+               th:classappend="${page.first ? 'disabled' : ''}"
+               class="page-link">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:13px;height:13px">
+                    <polyline points="15 18 9 12 15 6"/>
+                </svg>
+            </a>
+            <th:block th:each="i : ${#numbers.sequence(0, page.totalPages - 1)}">
+                <a th:href="@{/empleados(pagina=${i}, busqueda=${busqueda}, cargo=${cargo}, estado=${estado})}"
+                   th:text="${i + 1}"
+                   th:classappend="${i == page.number ? 'active' : ''}"
+                   class="page-link">1</a>
+            </th:block>
+            <a th:href="@{/empleados(pagina=${page.number + 1}, busqueda=${busqueda}, cargo=${cargo}, estado=${estado})}"
+               th:classappend="${page.last ? 'disabled' : ''}"
+               class="page-link">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:13px;height:13px">
+                    <polyline points="9 18 15 12 9 6"/>
+                </svg>
+            </a>
+        </div>
+        <p class="pag-info">
+            Mostrando
+            <strong th:text="${page.number * page.size + 1}">1</strong>–<strong
+               th:text="${page.number * page.size + #lists.size(empleados)}">10</strong>
+            de <strong th:text="${page.totalElements}">0</strong> empleados
+        </p>
+    </div>
+</div><!-- /card -->
+
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     MODAL: CREAR EMPLEADO
+══════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalCrear">
+    <div class="modal">
+        <div class="modal-header">
+            <span class="modal-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:16px;height:16px;vertical-align:middle;margin-right:.35rem">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Nuevo empleado
+            </span>
+            <button class="modal-close" onclick="cerrarModal('modalCrear')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:18px;height:18px">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+
+        <form th:action="@{/empleados/crear}" method="post" id="formCrear" novalidate>
+            <input type="hidden" th:name="${_csrf?.parameterName}" th:value="${_csrf?.token}"/>
+            <div class="modal-body">
+
+                <!-- Identificación -->
+                <div class="form-section-label">Identificación</div>
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label class="form-label" for="c_nombres">
+                            Nombres <span style="color:#b91c1c">*</span>
+                        </label>
+                        <input type="text" id="c_nombres" name="nombres"
+                               class="form-control"
+                               placeholder="ej. Juan Carlos"
+                               maxlength="100" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="c_apellidos">
+                            Apellidos <span style="color:#b91c1c">*</span>
+                        </label>
+                        <input type="text" id="c_apellidos" name="apellidos"
+                               class="form-control"
+                               placeholder="ej. García López"
+                               maxlength="100" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="c_dni">
+                            DNI <span style="color:#b91c1c">*</span>
+                        </label>
+                        <input type="text" id="c_dni" name="dni"
+                               class="form-control"
+                               placeholder="ej. 12345678"
+                               maxlength="8" minlength="8"
+                               pattern="\d{8}"
+                               inputmode="numeric"
+                               autocomplete="off"
+                               style="text-transform:uppercase; letter-spacing:.05em;">
+                        <div id="c_dni_feedback" class="feedback-msg"></div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="c_cargo">
+                            Cargo <span style="color:#b91c1c">*</span>
+                        </label>
+                        <input type="text" id="c_cargo" name="cargo"
+                               class="form-control"
+                               placeholder="ej. CAJERO"
+                               maxlength="80" autocomplete="off"
+                               style="text-transform:uppercase;">
+                    </div>
+                </div>
+
+                <!-- Contacto -->
+                <div class="form-section-label">Contacto</div>
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label class="form-label" for="c_telefono">Teléfono</label>
+                        <input type="tel" id="c_telefono" name="telefono"
+                               class="form-control"
+                               placeholder="ej. 987654321"
+                               maxlength="9" minlength="9"
+                               pattern="\d{9}"
+                               inputmode="numeric"
+                               autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="c_email">Correo electrónico</label>
+                        <input type="email" id="c_email" name="email"
+                               class="form-control"
+                               placeholder="ej. empleado@empresa.com"
+                               maxlength="120" autocomplete="off">
+                        <div id="c_email_feedback" class="feedback-msg"></div>
+                    </div>
+                    <div class="form-group full">
+                        <label class="form-label" for="c_direccion">Dirección</label>
+                        <input type="text" id="c_direccion" name="direccion"
+                               class="form-control"
+                               placeholder="ej. Av. Principal 123, Trujillo"
+                               maxlength="255" autocomplete="off">
+                    </div>
+                </div>
+
+                <!-- Fechas -->
+                <div class="form-section-label">Fechas</div>
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label class="form-label" for="c_fechaIngreso">
+                            Fecha de ingreso <span style="color:#b91c1c">*</span>
+                        </label>
+                        <input type="date" id="c_fechaIngreso" name="fechaIngreso"
+                               class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="c_fechaCese">Fecha de cese</label>
+                        <input type="date" id="c_fechaCese" name="fechaCese"
+                               class="form-control">
+                    </div>
+                </div>
+
+                <!-- Estado -->
+                <div class="form-section-label">Estado</div>
+                <div class="switch-row">
+                    <label class="switch">
+                        <input type="checkbox" name="activo" value="true" checked id="c_activo">
+                        <span class="switch-slider"></span>
+                    </label>
+                    <span class="switch-label">Empleado activo</span>
+                </div>
+
+            </div><!-- /modal-body -->
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="cerrarModal('modalCrear')">
+                    Cancelar
+                </button>
+                <button type="submit" class="btn btn-create" id="btnSubmitCrear">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         style="width:15px;height:15px">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    Guardar empleado
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     MODAL: EDITAR EMPLEADO
+══════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalEditar">
+    <div class="modal">
+        <div class="modal-header">
+            <span class="modal-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:16px;height:16px;vertical-align:middle;margin-right:.35rem">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+                Editar empleado
+            </span>
+            <button class="modal-close" onclick="cerrarModal('modalEditar')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:18px;height:18px">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+
+        <form id="formEditar" method="post" novalidate>
+            <input type="hidden" th:name="${_csrf?.parameterName}" th:value="${_csrf?.token}"/>
+            <div class="modal-body">
+
+                <!-- Identificación -->
+                <div class="form-section-label">Identificación</div>
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label class="form-label" for="e_nombres">
+                            Nombres <span style="color:#b91c1c">*</span>
+                        </label>
+                        <input type="text" id="e_nombres" name="nombres"
+                               class="form-control"
+                               placeholder="ej. Juan Carlos"
+                               maxlength="100" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="e_apellidos">
+                            Apellidos <span style="color:#b91c1c">*</span>
+                        </label>
+                        <input type="text" id="e_apellidos" name="apellidos"
+                               class="form-control"
+                               placeholder="ej. García López"
+                               maxlength="100" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="e_dni">DNI</label>
+                        <!-- DNI bloqueado en edición -->
+                        <input type="text" id="e_dni" name="dni"
+                               class="form-control field-locked"
+                               readonly
+                               maxlength="8" minlength="8"
+                               pattern="\d{8}"
+                               inputmode="numeric"
+                               autocomplete="off"
+                               style="letter-spacing:.05em;">
+                        <div class="lock-hint">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                            </svg>
+                            El DNI no puede modificarse
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="e_cargo">
+                            Cargo <span style="color:#b91c1c">*</span>
+                        </label>
+                        <input type="text" id="e_cargo" name="cargo"
+                               class="form-control"
+                               placeholder="ej. CAJERO"
+                               maxlength="80" autocomplete="off"
+                               style="text-transform:uppercase;">
+                    </div>
+                </div>
+
+                <!-- Contacto -->
+                <div class="form-section-label">Contacto</div>
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label class="form-label" for="e_telefono">Teléfono</label>
+                        <input type="tel" id="e_telefono" name="telefono"
+                               class="form-control"
+                               placeholder="ej. 987654321"
+                               maxlength="9" minlength="9"
+                               pattern="\d{9}"
+                               inputmode="numeric"
+                               autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="e_email">Correo electrónico</label>
+                        <input type="email" id="e_email" name="email"
+                               class="form-control"
+                               placeholder="ej. empleado@empresa.com"
+                               maxlength="120" autocomplete="off">
+                        <div id="e_email_feedback" class="feedback-msg"></div>
+                    </div>
+                    <div class="form-group full">
+                        <label class="form-label" for="e_direccion">Dirección</label>
+                        <input type="text" id="e_direccion" name="direccion"
+                               class="form-control"
+                               placeholder="ej. Av. Principal 123, Trujillo"
+                               maxlength="255" autocomplete="off">
+                    </div>
+                </div>
+
+                <!-- Fechas -->
+                <div class="form-section-label">Fechas</div>
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label class="form-label" for="e_fechaIngreso">
+                            Fecha de ingreso <span style="color:#b91c1c">*</span>
+                        </label>
+                        <input type="date" id="e_fechaIngreso" name="fechaIngreso"
+                               class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="e_fechaCese">Fecha de cese</label>
+                        <input type="date" id="e_fechaCese" name="fechaCese"
+                               class="form-control">
+                    </div>
+                </div>
+
+                <!-- Estado -->
+                <div class="form-section-label">Estado</div>
+                <div class="switch-row">
+                    <label class="switch">
+                        <input type="checkbox" name="activo" value="true" id="e_activo">
+                        <span class="switch-slider"></span>
+                    </label>
+                    <span class="switch-label">Empleado activo</span>
+                </div>
+
+            </div><!-- /modal-body -->
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="cerrarModal('modalEditar')">
+                    Cancelar
+                </button>
+                <button type="submit" class="btn btn-edit">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         style="width:15px;height:15px">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    Guardar cambios
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     MODAL: CONFIRMAR DESACTIVAR
+══════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalDesactivar">
+    <div class="modal confirm-modal">
+        <div class="modal-header">
+            <span class="modal-title">Confirmar desactivación</span>
+            <button class="modal-close" onclick="cerrarModal('modalDesactivar')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     style="width:18px;height:18px">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+        <div class="confirm-body">
+            <div class="confirm-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                    <path d="M10 11v6"/><path d="M14 11v6"/>
+                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                </svg>
+            </div>
+            <h3>¿Desactivar este empleado?</h3>
+            <p>El empleado <strong id="desactivarNombreEmp"></strong> quedará inactivo.
+               Se registrará la fecha de cese automáticamente. Esta acción puede revertirse editando el empleado.</p>
+        </div>
+        <form id="formDesactivarEmp" method="post">
+            <input type="hidden" th:name="${_csrf?.parameterName}" th:value="${_csrf?.token}"/>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="cerrarModal('modalDesactivar')">
+                    Cancelar
+                </button>
+                <button type="submit" class="btn btn-delete">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         style="width:15px;height:15px">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                    </svg>
+                    Sí, desactivar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════════════════════════════════════════ -->
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+    // ── Helpers modal ─────────────────────────────────────────────────────────
+    function abrirModal(id)  { document.getElementById(id).classList.add('open'); }
+    function cerrarModal(id) {
+        document.getElementById(id).classList.remove('open');
+        if (id === 'modalCrear' || id === 'modalEditar') limpiarModal(id);
+    }
+    window.cerrarModal = cerrarModal;
+
+    // ── Abrir modal CREAR ─────────────────────────────────────────────────────
+    document.getElementById('btnNuevoEmpleado').addEventListener('click', function () {
+        const hoy = new Date().toISOString().split('T')[0];
+        const fi = document.getElementById('c_fechaIngreso');
+        if (fi && !fi.value) fi.value = hoy;
+        abrirModal('modalCrear');
+    });
+
+    // ── Botones EDITAR empleado ───────────────────────────────────────────────
+    document.querySelectorAll('.btn-editar-emp').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const d = this.dataset;
+
+            setVal('e_nombres',      d.nombres);
+            setVal('e_apellidos',    d.apellidos);
+            setVal('e_dni',          d.dni);
+            setVal('e_cargo',        d.cargo);
+            setVal('e_telefono',     d.telefono);
+            setVal('e_email',        d.email);
+            setVal('e_direccion',    d.direccion);
+            setVal('e_fechaIngreso', d.fechaingreso);
+            setVal('e_fechaCese',    d.fechacese || '');
+
+            const chkActivo = document.getElementById('e_activo');
+            if (chkActivo) chkActivo.checked = (d.activo === 'true');
+
+            const form = document.getElementById('formEditar');
+            if (form) form.action = '/empleados/' + d.id + '/editar';
+
+            abrirModal('modalEditar');
+        });
+    });
+
+    function setVal(id, val) {
+        const el = document.getElementById(id);
+        if (el) el.value = val || '';
+    }
+
+    // ── Botones DESACTIVAR empleado ───────────────────────────────────────────
+    document.querySelectorAll('.btn-desactivar-emp').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const nombre = this.dataset.nombre;
+            const id     = this.dataset.id;
+            const span   = document.getElementById('desactivarNombreEmp');
+            const form   = document.getElementById('formDesactivarEmp');
+            if (span) span.textContent = nombre;
+            if (form) form.action = '/empleados/' + id + '/desactivar';
+            abrirModal('modalDesactivar');
+        });
+    });
+
+    // ── Cerrar al click en overlay ────────────────────────────────────────────
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+        overlay.addEventListener('click', function (e) {
+            if (e.target === overlay) {
+                const id = overlay.id;
+                overlay.classList.remove('open');
+                if (id === 'modalCrear' || id === 'modalEditar') limpiarModal(id);
+            }
+        });
+    });
+
+    // ── Cerrar con Escape ─────────────────────────────────────────────────────
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.modal-overlay.open').forEach(m => {
+                const id = m.id;
+                m.classList.remove('open');
+                if (id === 'modalCrear' || id === 'modalEditar') limpiarModal(id);
+            });
+        }
+    });
+
+    // ── Limpiar modales ───────────────────────────────────────────────────────
+    function limpiarModal(modalId) {
+        if (modalId === 'modalCrear') {
+            const form = document.getElementById('formCrear');
+            if (form) {
+                form.reset();
+                const chk = document.getElementById('c_activo');
+                if (chk) chk.checked = true;
+                form.querySelectorAll('.is-invalid, .field-ok, .field-error, .field-checking')
+                    .forEach(el => el.classList.remove('is-invalid','field-ok','field-error','field-checking'));
+                ['c_dni_feedback','c_email_feedback'].forEach(fid => {
+                    const fb = document.getElementById(fid);
+                    if (fb) { fb.textContent = ''; fb.className = 'feedback-msg'; }
+                });
+            }
+        }
+        if (modalId === 'modalEditar') {
+            const form = document.getElementById('formEditar');
+            if (form) {
+                form.reset();
+                form.querySelectorAll('.is-invalid, .field-ok, .field-error, .field-checking')
+                    .forEach(el => el.classList.remove('is-invalid','field-ok','field-error','field-checking'));
+                const fb = document.getElementById('e_email_feedback');
+                if (fb) { fb.textContent = ''; fb.className = 'feedback-msg'; }
+            }
+        }
+    }
+
+    // ── MAYÚSCULAS en cargo ───────────────────────────────────────────────────
+    ['c_cargo','e_cargo'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('input', function () {
+            const pos = this.selectionStart;
+            this.value = this.value.toUpperCase();
+            this.setSelectionRange(pos, pos);
+        });
+    });
+
+    // ── Solo dígitos en DNI (crear), teléfonos (crear y editar) ──────────────
+    ['c_dni', 'c_telefono', 'e_telefono'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('input', function () {
+            const pos = this.selectionStart;
+            const antes = this.value;
+            this.value = this.value.replace(/\D/g, '');
+            // Ajustar cursor si se eliminó algún carácter no numérico
+            const diff = antes.length - this.value.length;
+            this.setSelectionRange(pos - diff, pos - diff);
+        });
+    });
+
+    // ── Validación async DNI (crear) ──────────────────────────────────────────
+    let dniTimer = null;
+    const cDni = document.getElementById('c_dni');
+    if (cDni) {
+        cDni.addEventListener('blur', function () {
+            const val = this.value.trim();
+            if (val.length === 8) {
+                verificarDni(val, null, 'c_dni', 'c_dni_feedback');
+            } else if (val.length > 0) {
+                // Longitud incorrecta — marcar error sin llamar al servidor
+                this.classList.add('field-error','is-invalid');
+                this.classList.remove('field-ok','field-checking');
+                const fb = document.getElementById('c_dni_feedback');
+                if (fb) { fb.textContent = 'El DNI debe tener exactamente 8 dígitos.'; fb.className = 'feedback-msg show err'; }
+            }
+        });
+        cDni.addEventListener('input', function () {
+            clearTimeout(dniTimer);
+            const val = this.value.trim();
+            if (val.length === 8) {
+                // Exactamente 8 — verificar en servidor con debounce
+                dniTimer = setTimeout(() => {
+                    verificarDni(val, null, 'c_dni', 'c_dni_feedback');
+                }, 500);
+            } else {
+                // Menos de 8 — limpiar estado previo
+                resetField('c_dni', 'c_dni_feedback');
+            }
+        });
+    }
+
+    async function verificarDni(dni, excluirId, fieldId, feedbackId) {
+        if (!dni) return;
+        const field = document.getElementById(fieldId);
+        const fb    = document.getElementById(feedbackId);
+        if (!field || !fb) return;
+
+        field.classList.add('field-checking');
+        field.classList.remove('field-ok','field-error','is-invalid');
+
+        try {
+            let url = `/empleados/api/verificar-dni?dni=${encodeURIComponent(dni)}`;
+            if (excluirId) url += `&excluirId=${excluirId}`;
+            const existe = await (await fetch(url)).json();
+
+            field.classList.remove('field-checking');
+            if (existe) {
+                field.classList.add('field-error','is-invalid');
+                fb.textContent = 'Este DNI ya está registrado.';
+                fb.className   = 'feedback-msg show err';
+            } else {
+                field.classList.add('field-ok');
+                fb.textContent = 'DNI disponible.';
+                fb.className   = 'feedback-msg show ok';
+            }
+        } catch (_) {
+            field.classList.remove('field-checking');
+        }
+    }
+
+    function resetField(fieldId, feedbackId) {
+        const f  = document.getElementById(fieldId);
+        const fb = document.getElementById(feedbackId);
+        if (f)  f.classList.remove('field-ok','field-error','field-checking','is-invalid');
+        if (fb) { fb.textContent = ''; fb.className = 'feedback-msg'; }
+    }
+
+    // ── Validación async Email ────────────────────────────────────────────────
+    let emailTimerC = null, emailTimerE = null;
+    let _editingId  = null;
+
+    setupEmailField('c_email', 'c_email_feedback', () => null);
+    setupEmailField('e_email', 'e_email_feedback', () => _editingId);
+
+    function setupEmailField(fieldId, feedbackId, getExcluirId) {
+        const el = document.getElementById(fieldId);
+        if (!el) return;
+        el.addEventListener('blur', function () {
+            if (this.value.trim()) verificarEmail(this.value.trim(), getExcluirId(), fieldId, feedbackId);
+        });
+        el.addEventListener('input', function () {
+            clearTimeout(fieldId === 'c_email' ? emailTimerC : emailTimerE);
+            const val = this.value.trim();
+            const timer = setTimeout(() => {
+                if (val) verificarEmail(val, getExcluirId(), fieldId, feedbackId);
+                else     resetField(fieldId, feedbackId);
+            }, 700);
+            if (fieldId === 'c_email') emailTimerC = timer;
+            else emailTimerE = timer;
+        });
+    }
+
+    async function verificarEmail(email, excluirId, fieldId, feedbackId) {
+        const field = document.getElementById(fieldId);
+        const fb    = document.getElementById(feedbackId);
+        if (!field || !fb) return;
+
+        field.classList.add('field-checking');
+        field.classList.remove('field-ok','field-error','is-invalid');
+        try {
+            let url = `/empleados/api/verificar-email?email=${encodeURIComponent(email)}`;
+            if (excluirId) url += `&excluirId=${excluirId}`;
+            const existe = await (await fetch(url)).json();
+            field.classList.remove('field-checking');
+            if (existe) {
+                field.classList.add('field-error','is-invalid');
+                fb.textContent = 'Este correo ya está registrado.';
+                fb.className   = 'feedback-msg show err';
+            } else {
+                field.classList.add('field-ok');
+                fb.textContent = 'Correo disponible.';
+                fb.className   = 'feedback-msg show ok';
+            }
+        } catch (_) { field.classList.remove('field-checking'); }
+    }
+
+    // ── Guardar ID del empleado en edición (para email) ───────────────────────
+    document.querySelectorAll('.btn-editar-emp').forEach(btn => {
+        btn.addEventListener('click', function () {
+            _editingId = this.dataset.id;
+        });
+    });
+
+    // ── Validación SUBMIT CREAR ───────────────────────────────────────────────
+    const formCrear = document.getElementById('formCrear');
+    if (formCrear) {
+        formCrear.addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const nombres   = document.getElementById('c_nombres');
+            const apellidos = document.getElementById('c_apellidos');
+            const dni       = document.getElementById('c_dni');
+            const cargo     = document.getElementById('c_cargo');
+            const fechaIng  = document.getElementById('c_fechaIngreso');
+            const telefono  = document.getElementById('c_telefono');
+
+            let ok = true;
+            [nombres, apellidos, dni, cargo, fechaIng, telefono].forEach(f => {
+                if (f) f.classList.remove('is-invalid','field-error','field-ok');
+            });
+
+            if (!nombres?.value.trim())   { nombres.classList.add('is-invalid');   ok = false; }
+            if (!apellidos?.value.trim()) { apellidos.classList.add('is-invalid'); ok = false; }
+            if (!cargo?.value.trim())     { cargo.classList.add('is-invalid');     ok = false; }
+            if (!fechaIng?.value)         { fechaIng.classList.add('is-invalid');  ok = false; }
+
+            // DNI: obligatorio y exactamente 8 dígitos
+            if (!dni?.value.trim()) {
+                dni.classList.add('is-invalid'); ok = false;
+            } else if (!/^\d{8}$/.test(dni.value.trim())) {
+                dni.classList.add('is-invalid','field-error');
+                const fb = document.getElementById('c_dni_feedback');
+                if (fb) { fb.textContent = 'El DNI debe tener exactamente 8 dígitos.'; fb.className = 'feedback-msg show err'; }
+                ok = false;
+            } else {
+                // Verificar unicidad en servidor
+                try {
+                    const url = `/empleados/api/verificar-dni?dni=${encodeURIComponent(dni.value.trim())}`;
+                    const existe = await (await fetch(url)).json();
+                    if (existe) {
+                        dni.classList.add('is-invalid','field-error');
+                        const fb = document.getElementById('c_dni_feedback');
+                        if (fb) { fb.textContent = 'Este DNI ya está registrado.'; fb.className = 'feedback-msg show err'; }
+                        ok = false;
+                    }
+                } catch (_) { ok = false; }
+            }
+
+            // Teléfono: opcional, pero si se ingresó debe tener exactamente 9 dígitos
+            if (telefono?.value.trim() && !/^\d{9}$/.test(telefono.value.trim())) {
+                telefono.classList.add('is-invalid');
+                ok = false;
+            }
+
+            if (ok) HTMLFormElement.prototype.submit.call(this);
+        });
+    }
+
+    // ── Validación SUBMIT EDITAR ──────────────────────────────────────────────
+    const formEditar = document.getElementById('formEditar');
+    if (formEditar) {
+        formEditar.addEventListener('submit', function (e) {
+            const nombres   = document.getElementById('e_nombres');
+            const apellidos = document.getElementById('e_apellidos');
+            const cargo     = document.getElementById('e_cargo');
+            const fechaIng  = document.getElementById('e_fechaIngreso');
+            const telefono  = document.getElementById('e_telefono');
+
+            let ok = true;
+            [nombres, apellidos, cargo, fechaIng, telefono].forEach(f => {
+                if (f) f.classList.remove('is-invalid');
+            });
+
+            if (!nombres?.value.trim())   { nombres.classList.add('is-invalid');   ok = false; }
+            if (!apellidos?.value.trim()) { apellidos.classList.add('is-invalid'); ok = false; }
+            if (!cargo?.value.trim())     { cargo.classList.add('is-invalid');     ok = false; }
+            if (!fechaIng?.value)         { fechaIng.classList.add('is-invalid');  ok = false; }
+
+            // Teléfono: opcional, pero si se ingresó debe tener exactamente 9 dígitos
+            if (telefono?.value.trim() && !/^\d{9}$/.test(telefono.value.trim())) {
+                telefono.classList.add('is-invalid');
+                ok = false;
+            }
+
+            if (!ok) e.preventDefault();
+        });
+    }
+
+    // ── Flash auto-ocultar ────────────────────────────────────────────────────
+    const flash = document.querySelector('.alert-flash');
+    if (flash) {
+        setTimeout(() => {
+            flash.style.transition = 'opacity .4s';
+            flash.style.opacity    = '0';
+            setTimeout(() => flash.remove(), 400);
+        }, 4000);
+    }
+
+});
+</script>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="es"
+      xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout :: layout('Dashboard', ~{::main})}">
+<body>
+<main>
+    <style>
+.mesas-search-wrap { position: relative; min-width: 220px; }
+.mesas-search-wrap svg {
+    position: absolute; left: .65rem; top: 50%; transform: translateY(-50%);
+    width: 13px; height: 13px; color: var(--text-sub); pointer-events: none;
+}
+.mesas-search-wrap input {
+    width: 100%; padding: .42rem .7rem .42rem 2rem;
+    font-size: .82rem; font-family: inherit;
+    border: 1.5px solid var(--border); border-radius: 8px;
+    background: var(--surface); color: var(--text-main);
+    outline: none; transition: border-color .2s;
+}
+.mesas-search-wrap input:focus { border-color: var(--primary); }
+
+.mesas-activas-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: .8rem;
+}
+.mesa-activa-card {
+    display: block; text-decoration: none;
+    border: 1.5px solid var(--border); border-radius: var(--radius);
+    padding: .9rem 1rem; background: #fafbfd;
+    transition: border-color .15s, box-shadow .15s, transform .1s;
+}
+.mesa-activa-card:hover {
+    border-color: #1d3557; box-shadow: var(--shadow-md); transform: translateY(-1px);
+}
+.mac-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: .55rem; }
+.mac-numero {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 38px; height: 38px; border-radius: 9px;
+    background: #1d3557; color: #fff; font-size: 1.05rem; font-weight: 800; padding: 0 .5rem;
+}
+.mac-area {
+    font-size: .73rem; color: var(--text-sub);
+    text-transform: uppercase; letter-spacing: .05em; font-weight: 600; margin-bottom: .5rem;
+}
+.mac-info { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.mac-pedido { font-family: 'Courier New', monospace; font-size: .72rem; color: var(--text-sub); }
+.mac-total { font-size: .87rem; font-weight: 800; color: #1d3557; }
+.mac-badge {
+    display: inline-flex; align-items: center; gap: .3rem;
+    padding: .18rem .55rem; border-radius: 20px; font-size: .68rem; font-weight: 700;
+}
+.mac-badge .dot { width: 5px; height: 5px; border-radius: 50%; }
+.mac-abierto { background:#eff6ff; color:#1d4ed8; }
+.mac-cocina  { background:#fff7ed; color:#c2410c; }
+.mac-servido { background:#f0fdf4; color:#15803d; }
+.mac-empty-state {
+    grid-column: 1/-1; text-align: center; padding: 2rem 1rem;
+    color: var(--text-sub); font-size: .85rem;
+}
+</style>
+    <div style="margin-bottom:1.25rem;">
+        <h1 style="font-size:1.3rem;font-weight:700;color:#1a1a2e;">
+            Bienvenido, <span th:text="${usuario.nombreCompleto}">Usuario</span>
+        </h1>
+        <p style="color:#64748b;font-size:.88rem;margin-top:.2rem;">
+            Resumen del sistema — <span th:text="${#temporals.format(#temporals.createNow(), 'EEEE, dd MMMM yyyy')}">Fecha</span>
+        </p>
+    </div>
+
+    <!-- Stats row -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:1.5rem;">
+
+        <div class="card" style="padding:1.1rem 1.25rem;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem;">
+                <span style="font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#64748b;">Mesas ocupadas</span>
+                <div style="background:#e8eef5;border-radius:8px;padding:6px;display:flex;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1d3557" stroke-width="2">
+                        <path d="M3 6h18M3 12h18M3 18h18"/>
+                    </svg>
+                </div>
+            </div>
+            <div style="font-size:1.8rem;font-weight:700;color:#1a1a2e;" th:text="${mesasOcupadas}">0</div>
+        </div>
+
+        <div class="card" style="padding:1.1rem 1.25rem;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem;">
+                <span style="font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#64748b;">Pedidos abiertos</span>
+                <div style="background:#dcfce7;border-radius:8px;padding:6px;display:flex;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#344e41" stroke-width="2">
+                        <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+                        <rect x="9" y="3" width="6" height="4" rx="1"/>
+                    </svg>
+                </div>
+            </div>
+            <div style="font-size:1.8rem;font-weight:700;color:#1a1a2e;" th:text="${pedidosAbiertosHoy}">0</div>
+        </div>
+
+        <div class="card" style="padding:1.1rem 1.25rem;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem;">
+                <span style="font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#64748b;">Ventas hoy</span>
+                <div style="background:#fef9c3;border-radius:8px;padding:6px;display:flex;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#854d0e" stroke-width="2">
+                        <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                    </svg>
+                </div>
+            </div>
+            <div style="font-size:1.8rem;font-weight:700;color:#1a1a2e;" 
+             th:text="'S/ ' + ${#numbers.formatDecimal(ventasHoy, 1, 'DEFAULT', 2, 'DEFAULT')}">S/ 0.00</div>
+        </div>
+
+        <div class="card" style="padding:1.1rem 1.25rem;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem;">
+                <span style="font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#64748b;">En cocina</span>
+                <div style="background:#fce7f3;border-radius:8px;padding:6px;display:flex;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9d174d" stroke-width="2">
+                        <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/>
+                    </svg>
+                </div>
+            </div>
+            <div style="font-size:1.8rem;font-weight:700;color:#1a1a2e;" th:text="${pedidosEnCocina}">0</div>
+        </div>
+    </div>
+
+    <!-- Quick access -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Acceso rápido</span>
+        </div>
+        <div class="card-body" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.75rem;">
+            <a th:href="@{/pedidos(accion='nuevo')}" class="btn btn-create" style="justify-content:center;padding:.8rem;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/>
+                    <line x1="8" y1="12" x2="16" y2="12"/>
+                </svg>
+                Nuevo pedido
+            </a>
+            <a th:href="@{/reservas}" class="btn btn-edit" style="justify-content:center;padding:.8rem;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 6h18M3 12h18M3 18h18"/>
+                </svg>
+                Ver Reservas
+            </a>
+            <a th:href="@{/cocina}" class="btn btn-secondary" style="justify-content:center;padding:.8rem;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/>
+                </svg>
+                Cocina
+            </a>
+            <a th:href="@{/comprobantes}" class="btn btn-secondary" style="justify-content:center;padding:.8rem;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                </svg>
+                Comprobantes
+            </a>
+        </div>
+    </div>
+    <!-- Mesas con pedido activo -->
+<div class="card" style="margin-top:1.5rem;">
+    <div class="card-header">
+        <span class="card-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 style="width:15px;height:15px;vertical-align:middle;margin-right:.35rem">
+                <path d="M3 6h18M3 12h18M3 18h18"/>
+            </svg>
+            Mesas con pedido activo
+            <span style="font-weight:400; color:var(--text-sub); font-size:.78rem;"
+                  th:text="'(' + ${#lists.size(pedidosActivos)} + ')'">(0)</span>
+        </span>
+        <div class="mesas-search-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input type="text" id="buscarMesaDashboard"
+                   placeholder="Buscar mesa o área…" autocomplete="off">
+        </div>
+    </div>
+
+    <div class="card-body">
+        <div class="mesas-activas-grid" id="mesasActivasGrid">
+            <a th:each="p : ${pedidosActivos}"
+               th:href="@{/pedidos/{id}(id=${p.id})}"
+               class="mesa-activa-card"
+               th:data-label="${#strings.toLowerCase(p.mesa.area.nombre + ' ' + p.mesa.numero)}">
+                <div class="mac-top">
+                    <span class="mac-numero" th:text="${p.mesa.numero}">1</span>
+                    <span class="mac-badge"
+                          th:classappend="${p.estado == 'ABIERTO'   ? 'mac-abierto' :
+                                           p.estado == 'EN_COCINA' ? 'mac-cocina'  :
+                                                                      'mac-servido'}">
+                        <span class="dot"></span>
+                        <span th:text="${p.estado == 'EN_COCINA' ? 'En cocina' : p.estado}">—</span>
+                    </span>
+                </div>
+                <div class="mac-area" th:text="${p.mesa.area.nombre}">Área</div>
+                <div class="mac-info">
+                    <span class="mac-pedido" th:text="${p.numeroPedido}">PED-...</span>
+                    <span class="mac-total">
+                        S/ <span th:text="${#numbers.formatDecimal(p.total, 1, 2)}">0.00</span>
+                    </span>
+                </div>
+            </a>
+        </div>
+
+        <div th:if="${#lists.isEmpty(pedidosActivos)}" class="mac-empty-state">
+            No hay mesas con pedidos activos en este momento.
+        </div>
+        <div id="mesasActivasSinResultados" class="mac-empty-state" style="display:none;">
+            No se encontraron mesas con esos términos.
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const input = document.getElementById('buscarMesaDashboard');
+    if (!input) return;
+
+    const cards = document.querySelectorAll('.mesa-activa-card');
+    const sinResultados = document.getElementById('mesasActivasSinResultados');
+
+    input.addEventListener('input', function () {
+        const txt = this.value.toLowerCase().trim();
+        let visibles = 0;
+        cards.forEach(card => {
+            const match = txt === '' || card.dataset.label.includes(txt);
+            card.style.display = match ? '' : 'none';
+            if (match) visibles++;
+        });
+        if (sinResultados) {
+            sinResultados.style.display = (visibles === 0 && cards.length > 0) ? '' : 'none';
+        }
+    });
+});
+</script>
+</main>
+
+</body>
+</html>

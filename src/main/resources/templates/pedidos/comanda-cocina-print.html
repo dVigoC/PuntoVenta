@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="'Comanda · ' + ${comanda.numeroComanda}">Comanda Cocina</title>
+    <style>
+        /* ══════════════════════════════════════════════════════
+           RESET Y BASE
+        ══════════════════════════════════════════════════════ */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --primary:    #1d3557;
+            --accent:     #e63946;
+            --border:     #dee2e6;
+            --text:       #212529;
+            --text-sub:   #6c757d;
+            --bg:         #f8f9fa;
+            --radius:     8px;
+            --shadow:     0 2px 12px rgba(0,0,0,.10);
+        }
+
+        body {
+            font-family: 'Courier New', 'Courier', monospace;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 1.5rem 1rem 3rem;
+        }
+
+        /* ══════════════════════════════════════════════════════
+           BARRA DE ACCIONES (no se imprime)
+        ══════════════════════════════════════════════════════ */
+        .action-bar {
+            width: 100%;
+            max-width: 440px;
+            display: flex;
+            align-items: center;
+            gap: .6rem;
+            margin-bottom: 1.2rem;
+            flex-wrap: wrap;
+        }
+
+        .btn-action {
+            display: inline-flex;
+            align-items: center;
+            gap: .4rem;
+            padding: .52rem 1.1rem;
+            font-size: .84rem;
+            font-weight: 700;
+            font-family: 'Inter', system-ui, sans-serif;
+            border: none;
+            border-radius: var(--radius);
+            cursor: pointer;
+            text-decoration: none;
+            transition: filter .18s, transform .1s;
+            white-space: nowrap;
+        }
+        .btn-action:active { transform: scale(.97); }
+        .btn-action:hover  { filter: brightness(.88); }
+        .btn-action svg    { width: 15px; height: 15px; }
+
+        .btn-print   { background: #1d3557; color: #fff; }
+        .btn-back    { background: #f1f5f9; color: #334155;
+                       border: 1px solid #e2e8f0; }
+        .btn-cocina  { background: #7c3aed; color: #fff; }
+
+        /* ══════════════════════════════════════════════════════
+           TICKET / COMANDA
+        ══════════════════════════════════════════════════════ */
+        .ticket {
+            width: 100%;
+            max-width: 380px;
+            background: #fff;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 1.4rem 1.6rem 1.8rem;
+            border: 1px solid var(--border);
+        }
+
+        /* ─── Encabezado comanda ─────────────────────────────── */
+        .ticket-head {
+            text-align: center;
+            border-bottom: 2px dashed var(--border);
+            padding-bottom: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .comanda-badge {
+            display: inline-block;
+            background: var(--accent);
+            color: #fff;
+            font-size: 1.5rem;
+            font-weight: 900;
+            letter-spacing: .08em;
+            padding: .35rem 1.2rem;
+            border-radius: 6px;
+            margin-bottom: .55rem;
+        }
+
+        .ticket-head h2 {
+            font-size: .82rem;
+            font-weight: 700;
+            color: var(--text-sub);
+            letter-spacing: .12em;
+            text-transform: uppercase;
+            margin-bottom: .25rem;
+        }
+
+        .ticket-head .num-comanda {
+            font-size: 1rem;
+            font-weight: 900;
+            color: var(--primary);
+            letter-spacing: .04em;
+        }
+
+        /* ─── Info meta ──────────────────────────────────────── */
+        .meta-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            font-size: .78rem;
+            color: var(--text-sub);
+            margin-bottom: .2rem;
+        }
+        .meta-row strong { color: var(--text); font-size: .82rem; }
+
+        .meta-block {
+            border-bottom: 1px dashed var(--border);
+            padding-bottom: .8rem;
+            margin-bottom: .9rem;
+        }
+
+        .envio-badge {
+            display: inline-block;
+            background: #fff7ed;
+            color: #c2410c;
+            border: 1.5px solid #fed7aa;
+            border-radius: 20px;
+            font-size: .72rem;
+            font-weight: 800;
+            padding: .18rem .65rem;
+            margin-top: .3rem;
+        }
+
+        /* ─── Ítems ──────────────────────────────────────────── */
+        .items-title {
+            font-size: .67rem;
+            font-weight: 700;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+            color: var(--text-sub);
+            margin-bottom: .55rem;
+        }
+
+        .item-row {
+            display: flex;
+            gap: .65rem;
+            align-items: flex-start;
+            padding: .55rem 0;
+            border-bottom: 1px dotted #dee2e6;
+        }
+        .item-row:last-child { border-bottom: none; }
+
+        .item-qty {
+            min-width: 32px;
+            font-size: 1.35rem;
+            font-weight: 900;
+            color: var(--accent);
+            line-height: 1;
+            flex-shrink: 0;
+            text-align: center;
+        }
+
+        .item-info { flex: 1; }
+
+        .item-nombre {
+            font-size: .92rem;
+            font-weight: 800;
+            color: var(--text);
+            line-height: 1.25;
+            text-transform: uppercase;
+        }
+
+        .item-nota {
+            font-size: .75rem;
+            color: #c2410c;
+            background: #fff7ed;
+            border-left: 3px solid #f97316;
+            padding: .15rem .4rem;
+            margin-top: .25rem;
+            border-radius: 0 4px 4px 0;
+            font-style: italic;
+        }
+
+        /* ─── Pie de comanda ─────────────────────────────────── */
+        .ticket-foot {
+            border-top: 2px dashed var(--border);
+            margin-top: 1rem;
+            padding-top: .9rem;
+            text-align: center;
+            font-size: .72rem;
+            color: var(--text-sub);
+            line-height: 1.6;
+        }
+
+        .foot-alert {
+            display: inline-block;
+            background: #fef9c3;
+            color: #854d0e;
+            border: 1px solid #fde68a;
+            border-radius: 6px;
+            padding: .3rem .75rem;
+            font-size: .75rem;
+            font-weight: 700;
+            margin-bottom: .5rem;
+        }
+
+        /* ══════════════════════════════════════════════════════
+           IMPRESIÓN
+        ══════════════════════════════════════════════════════ */
+        @media print {
+            body {
+                background: #fff;
+                padding: 0;
+                display: block;
+            }
+
+            .action-bar { display: none !important; }
+
+            .ticket {
+                box-shadow: none;
+                border: none;
+                border-radius: 0;
+                max-width: 100%;
+                padding: 0;
+                margin: 0;
+            }
+
+            /* Ancho de impresión: 80 mm ≈ 302 px; 58 mm ≈ 219 px */
+            @page {
+                size: 80mm auto;
+                margin: 4mm;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ══ BARRA DE ACCIONES (no se imprime) ═══════════════════════════════ -->
+    <div class="action-bar">
+        <a th:href="@{/pedidos/{id}(id=${pedido.id})}" class="btn-action btn-back">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="15 18 9 12 15 6"/>
+            </svg>
+            Volver al pedido
+        </a>
+
+        <button class="btn-action btn-print" onclick="imprimirComanda()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 6 2 18 2 18 9"/>
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+                <rect x="6" y="14" width="12" height="8"/>
+            </svg>
+            Imprimir / Guardar PDF
+        </button>
+    </div>
+
+    <!-- ══ COMANDA ═══════════════════════════════════════════════════════════ -->
+    <div class="ticket" id="ticketComanda">
+
+        <!-- Encabezado -->
+        <div class="ticket-head">
+            <div class="comanda-badge">COCINA</div>
+            <h2>Comanda de cocina</h2>
+            <div class="num-comanda" th:text="${comanda.numeroComanda}">COM-20250101-0001</div>
+        </div>
+
+        <!-- Meta info -->
+        <div class="meta-block">
+            <div class="meta-row">
+                <span>Mesa</span>
+                <strong th:text="${pedido.mesa.area.nombre + ' · ' + pedido.mesa.numero}">A · 1</strong>
+            </div>
+            <div class="meta-row">
+                <span>Pedido</span>
+                <strong th:text="${pedido.numeroPedido}">PED-...</strong>
+            </div>
+            <div class="meta-row">
+                <span>Fecha / Hora</span>
+                <strong th:text="${#temporals.format(comanda.creadoEn, 'dd/MM/yyyy HH:mm')}">01/01/25 12:00</strong>
+            </div>
+            <span class="envio-badge"
+                  th:text="${comanda.nroEnvio == 1 ? '1er envío' :
+                            comanda.nroEnvio == 2 ? '2do envío' :
+                            comanda.nroEnvio + 'er envío'}">
+                1er envío
+            </span>
+        </div>
+
+        <!-- Ítems -->
+        <div class="items-title">Preparar</div>
+
+        <div th:each="dc : ${comanda.detalles}" class="item-row">
+            <div class="item-qty" th:text="${dc.cantidad}">1</div>
+            <div class="item-info">
+                <div class="item-nombre" th:text="${dc.detallePedido.producto.nombre}">Plato</div>
+                <div class="item-nota"
+                     th:if="${dc.notaCocina != null and !#strings.isEmpty(dc.notaCocina)}"
+                     th:text="'⚠ ' + ${dc.notaCocina}">nota</div>
+            </div>
+        </div>
+
+        <!-- Pie -->
+        <div class="ticket-foot">
+            <div class="foot-alert">¡Preparar a la brevedad!</div><br>
+            <span th:text="${#temporals.format(comanda.creadoEn, 'dd/MM/yyyy HH:mm:ss')}">—</span>
+        </div>
+
+    </div><!-- /ticket -->
+
+    <script th:inline="javascript">
+        const COMANDA_ID   = /*[[${comanda.id}]]*/ 0;
+        const CSRF_HEADER  = 'X-XSRF-TOKEN';
+        const CSRF_TOKEN   = (document.cookie.match(/XSRF-TOKEN=([^;]+)/) || [])[1] || '';
+
+        function imprimirComanda() {
+            // Marcar como impresa en BD (fire-and-forget)
+            fetch('/pedidos/comanda/' + COMANDA_ID + '/marcar-impresa', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    [CSRF_HEADER]: CSRF_TOKEN
+                }
+            }).catch(() => {}); // ignorar error de red
+
+            window.print();
+        }
+
+        // Si la URL trae ?auto=1, imprimir automáticamente al cargar
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('auto') === '1') {
+            window.addEventListener('load', () => {
+                setTimeout(imprimirComanda, 400);
+            });
+        }
+    </script>
+</body>
+</html>
